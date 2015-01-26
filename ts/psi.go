@@ -1,0 +1,340 @@
+package ts
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+var StreamTypeString map[int]string = map[int]string{
+	// ISO/IEC 13818-1
+	0x00: "Reserved",
+	0x01: "MPEG-1 Video",
+	0x02: "MPEG-2 Video",
+	0x03: "MPEG-1 Audio",
+	0x04: "MPEG-2 Audio",
+	0x05: "Private Section",
+	0x06: "Private PES",
+	0x0F: "MPEG-2 AAC Audio (ADTS)",
+	0x10: "MPEG-4 Video",
+	0x11: "MPEG-4 AAC Audio (LATM)",
+	0x1B: "MPEG-4 AVC Video",
+	0x81: "AC-3 Audio",
+	0x82: "SCTE-27",
+	0x86: "SCTE-35",
+	0x87: "E-AC-3 Audio",
+}
+
+func GetStreamType(s Stream) string {
+	if typeString, ok := StreamTypeString[s.stream_type]; ok {
+		return typeString
+	} else {
+		return "Unknown stream type"
+	}
+}
+
+var DescriptorTagString map[int]string = map[int]string{
+	// ISO/IEC 13818-1
+	0x00: "Reserved",
+	0x01: "Reserved",
+	0x02: "video_stream_descriptor",
+	0x03: "audio_stream_descriptor",
+	0x04: "hierarchy_descriptor",
+	0x05: "registration_descriptor",
+	0x0A: "ISO_639_language_descriptor",
+	// ETSI EN 300 468
+	0x56: "teletext_descriptor",
+	0x59: "subtitling_descriptor",
+	// ATSC A/52
+	0x6A: "AC-3_descriptor",              // DVB
+	0x81: "AC-3_audio_stream_descriptor", // ATSC
+	// Random stuff
+	0xDD: "harmonic_descriptor",
+}
+
+func GetDescriptorTabString(tag int) string {
+	if tagString, ok := DescriptorTagString[tag]; ok {
+		return tagString
+	} else {
+		return "Unknown descriptor tag"
+	}
+}
+
+func ParsePat(data []byte) *Pat {
+	pat := Pat{}
+	r := &Reader{Data: data}
+	pointer := r.ReadBit(8)
+	r.SkipByte(pointer)
+	r.SkipBit(12)
+	pat.section_length = r.ReadBit(12)
+	pat.transport_stream_id = r.ReadBit(16)
+	r.SkipBit(2)
+	pat.version_number = r.ReadBit(5)
+	pat.current_next_indicator = r.ReadBit(1)
+	pat.section_number = r.ReadBit(8)
+	pat.last_section_number = r.ReadBit(8)
+	section_length := pat.section_length
+	// 5 bytes before and 4 bytes after programs
+	section_length -= 5 + 4
+	pat.programs = make(map[int]Program)
+	for section_length > 0 {
+		program := Program{}
+		program.program_number = r.ReadBit(16)
+		if program.program_number != 0 {
+			r.SkipBit(3)
+			program.pid = r.ReadBit(13)
+			pat.programs[program.pid] = program
+		} else {
+			r.SkipByte(2)
+		}
+		section_length -= 4
+	}
+	pat.crc = r.ReadBit(32)
+	return &pat
+}
+
+func ParsePmt(data []byte) *Pmt {
+	pmt := Pmt{}
+	r := &Reader{Data: data}
+	pointer := r.ReadBit(8)
+	r.SkipByte(pointer)
+	r.SkipBit(12)
+	pmt.section_length = r.ReadBit(12)
+	pmt.program_number = r.ReadBit(16)
+	r.SkipBit(2)
+	pmt.version_number = r.ReadBit(5)
+	pmt.current_next_indicator = r.ReadBit(1)
+	pmt.section_number = r.ReadBit(8)
+	pmt.last_section_number = r.ReadBit(8)
+	r.SkipBit(3)
+	pmt.pcr_pid = r.ReadBit(13)
+	r.SkipBit(4)
+	pmt.program_info_length = r.ReadBit(12)
+	r.SkipByte(pmt.program_info_length)
+	section_length := pmt.section_length
+	section_length -= 9 + pmt.program_info_length + 4
+	pmt.streams = make(map[int]Stream)
+	for section_length > 0 {
+		s := Stream{}
+		n := ParseStream(&s, r)
+		pmt.streams[s.elementary_pid] = s
+		section_length -= n
+	}
+	pmt.crc = r.ReadBit(32)
+	return &pmt
+}
+
+func ParseStream(stream *Stream, r *Reader) int {
+	stream.stream_type = r.ReadBit(8)
+	r.SkipBit(3)
+	stream.elementary_pid = r.ReadBit(13)
+	r.SkipBit(4)
+	stream.es_info_length = r.ReadBit(12)
+	es_info_length := stream.es_info_length
+	for es_info_length > 0 {
+		descriptor_tag := r.ReadBit(8)
+		descriptor_length := r.ReadBit(8)
+		d := Descriptor{}
+		d.tag = descriptor_tag
+		d.data = r.Data[r.Base : r.Base+descriptor_length]
+		stream.descriptors = append(stream.descriptors, d)
+		es_info_length -= 2 + descriptor_length
+		r.SkipByte(descriptor_length)
+	}
+	return 5 + stream.es_info_length
+}
+
+func ParseRegDescriptor(data []byte) RegistrationDescriptor {
+	reg := RegistrationDescriptor{}
+	reg.format_identifier = string(data[:4])
+	return reg
+}
+
+func ParseLangDescriptor(data []byte) ISO639LanguageDescriptor {
+	lang := ISO639LanguageDescriptor{}
+	for i := 0; i < len(data); i += 4 {
+		lang.ISO_639_language_code = append(lang.ISO_639_language_code, string(data[i:i+3]))
+		lang.audio_type = append(lang.audio_type, int(data[3]))
+	}
+	return lang
+}
+
+type Program struct {
+	program_number int
+	pid            int
+}
+
+type Stream struct {
+	stream_type    int
+	elementary_pid int
+	es_info_length int
+	descriptors    []Descriptor
+}
+
+type Pat struct {
+	table_id                 int
+	section_syntax_indicator int
+	section_length           int
+	transport_stream_id      int
+	version_number           int
+	current_next_indicator   int
+	section_number           int
+	last_section_number      int
+	crc                      int
+	programs                 map[int]Program
+}
+
+type Pmt struct {
+	table_id                 int
+	section_syntax_indicator int
+	section_length           int
+	program_number           int
+	version_number           int
+	current_next_indicator   int
+	section_number           int
+	last_section_number      int
+	pcr_pid                  int
+	program_info_length      int
+	crc                      int
+	streams                  map[int]Stream
+}
+
+type Descriptor struct {
+	tag  int
+	data []byte
+}
+
+type RegistrationDescriptor struct {
+	format_identifier string
+}
+
+type ISO639LanguageDescriptor struct {
+	ISO_639_language_code []string
+	audio_type            []int
+}
+
+func NewPsiParser() *PsiParser {
+	return &PsiParser{
+		PmtData: make(map[int][]byte),
+		Pmts:    make(map[int]*Pmt),
+		Strs:    make(map[int]Stream),
+		Pcrs:    make(map[int][]int),
+	}
+}
+
+type PsiParser struct {
+	PatData []byte
+	Pat     *Pat
+	PmtData map[int][]byte
+	Pmts    map[int]*Pmt
+	Strs    map[int]Stream
+	Pcrs    map[int][]int
+}
+
+func (p *PsiParser) Parse(pkt *TsPkt) bool {
+	pid := pkt.Pid
+
+	if p.Pat == nil {
+		if pid != 0 {
+			return false
+		}
+
+		if ok := p.BufferData(pkt, &p.PatData); ok {
+			pat := ParsePat(p.PatData)
+			p.Pat = pat
+		}
+	} else {
+		// Check pmt pid
+		if _, ok := p.Pat.programs[pid]; !ok {
+			return false
+		}
+
+		pmtData := p.PmtData[pid]
+		if ok := p.BufferData(pkt, &pmtData); ok {
+			pmt := ParsePmt(pmtData)
+			p.Pmts[pid] = pmt
+		}
+		p.PmtData[pid] = pmtData
+
+		// Check if all pmts have been parsed
+		if len(p.Pat.programs) == len(p.Pmts) {
+			p.ParseDone()
+			return true
+		}
+	}
+
+	return false
+}
+
+func (p *PsiParser) ParseDone() {
+	for _, pmt := range p.Pmts {
+		for _, stream := range pmt.streams {
+			p.Strs[stream.elementary_pid] = stream
+			p.Pcrs[pmt.pcr_pid] = append(p.Pcrs[pmt.pcr_pid], stream.elementary_pid)
+		}
+	}
+}
+
+func (p *PsiParser) GetStreams() map[int]Stream {
+	return p.Strs
+}
+
+func (p *PsiParser) GetPcrs() map[int][]int {
+	return p.Pcrs
+}
+
+func (p *PsiParser) BufferData(pkt *TsPkt, buf *[]byte) bool {
+	if pkt.PUSI == 1 {
+		if *buf != nil {
+			return true
+		} else {
+			*buf = pkt.Data
+		}
+	} else {
+		if *buf != nil {
+			*buf = append(*buf, pkt.Data...)
+		}
+	}
+	return false
+}
+
+func (p *PsiParser) Report(root string) {
+	fname := filepath.Join(root, "psi.log")
+	w, err := os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+	defer w.Close()
+
+	printDescriptor := func(stream Stream) {
+		if len(stream.descriptors) == 0 {
+			return
+		}
+		fmt.Fprintf(w, "\t\tdescriptors:\n")
+		for _, descriptor := range stream.descriptors {
+			fmt.Fprintf(w, "\t\t\t")
+			fmt.Fprintf(w, "%v", GetDescriptorTabString(descriptor.tag))
+			switch descriptor.tag {
+			case 0x05:
+				reg := ParseRegDescriptor(descriptor.data)
+				fmt.Fprintf(w, ": %v", reg.format_identifier)
+			case 0x0A:
+				lang := ParseLangDescriptor(descriptor.data)
+				fmt.Fprintf(w, ": %v", lang.ISO_639_language_code)
+			}
+			fmt.Fprintf(w, "\n")
+		}
+	}
+
+	for _, program := range p.Pat.programs {
+		pmt := p.Pmts[program.pid]
+		fmt.Fprintf(w, "[program] num: %v, pmt: %v, pcr: %v\n",
+			program.program_number, program.pid, pmt.pcr_pid)
+		for _, stream := range pmt.streams {
+			fmt.Fprintf(w, "\t")
+			fmt.Fprintf(w, "[stream] pid: %v, type: %v\n",
+				stream.elementary_pid, GetStreamType(stream))
+			printDescriptor(stream)
+		}
+	}
+}
