@@ -26,14 +26,14 @@ func main() {
 			cli.ShowAppHelp(c)
 			return
 		}
-		input := filepath.Base(inputTsFile)
+		inputBaseName := filepath.Base(inputTsFile)
 		outdir := c.String("output")
 		if outdir == "" {
-			outdir = input + ".log"
+			outdir = inputBaseName + ".log"
 		}
 		psiOnly := c.Bool("psi-only")
 		os.Mkdir(outdir, os.ModeDir|0755)
-		parse(input, outdir, psiOnly)
+		parse(inputTsFile, outdir, psiOnly)
 	}
 	app.Run(os.Args)
 }
