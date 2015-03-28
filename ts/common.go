@@ -73,12 +73,13 @@ func (p TsPkt) PCR() (int64, bool) {
 }
 
 type PesPkt struct {
-	Pos  int64
-	Size int64
-	Pcr  int64
-	Pts  int64
-	Dts  int64
-	Data []byte
+	Pos    int64
+	Size   int64
+	Pcr    int64
+	PcrPos int64
+	Pts    int64
+	Dts    int64
+	Data   []byte
 }
 
 func (p *PesPkt) Read(pkt *TsPkt) (n int) {

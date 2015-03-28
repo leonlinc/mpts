@@ -11,17 +11,19 @@ import (
 
 type Record interface {
 	Process(pkt *TsPkt)
-	NotifyTime(pcr int64)
+	NotifyTime(pcr int64, pos int64)
 	Flush()
 	Report(root string)
 }
 
 type BaseRecord struct {
 	PcrTime int64
+	PcrPos  int64
 }
 
-func (b *BaseRecord) NotifyTime(pcr int64) {
+func (b *BaseRecord) NotifyTime(pcr int64, pos int64) {
 	b.PcrTime = pcr
+	b.PcrPos = pos
 }
 
 type PesRecord struct {
@@ -39,6 +41,7 @@ func (s *PesRecord) Process(pkt *TsPkt) {
 		s.curpkt = &PesPkt{}
 		s.curpkt.Pos = pkt.Pos
 		s.curpkt.Pcr = s.BaseRecord.PcrTime
+		s.curpkt.PcrPos = s.BaseRecord.PcrPos
 		var startcode = []byte{0, 0, 1}
 		if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
 			hlen := s.curpkt.Read(pkt)
@@ -64,7 +67,7 @@ func (s *PesRecord) Report(root string) {
 	}
 	defer w.Close()
 
-	header := "Pos, Size, PCR, PTS, DTS, (DTS-PCR)"
+	header := "Pos, Size, PCR, PcrPos, PTS, DTS, (DTS-PCR)"
 	fmt.Fprintln(w, header)
 	for _, p := range s.Pkts {
 		pcr := p.Pcr / 300
@@ -76,6 +79,7 @@ func (s *PesRecord) Report(root string) {
 			strconv.FormatInt(p.Pos, 10),
 			strconv.FormatInt(p.Size, 10),
 			strconv.FormatInt(pcr, 10),
+			strconv.FormatInt(p.PcrPos, 10),
 			strconv.FormatInt(p.Pts, 10),
 			strconv.FormatInt(dts, 10),
 			strconv.FormatInt(dts-pcr, 10),

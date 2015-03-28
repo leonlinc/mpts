@@ -32,7 +32,7 @@ func parse(fname string, outdir string, psiOnly bool) {
 		if pcr, ok := pkt.PCR(); ok {
 			if pids, ok := pcrs[pkt.Pid]; ok {
 				for _, pid := range pids {
-					records[pid].NotifyTime(pcr)
+					records[pid].NotifyTime(pcr, pkt.Pos)
 				}
 			}
 		}
