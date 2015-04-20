@@ -2,10 +2,14 @@ package main
 
 import (
 	"llin/ts"
+	"llin/ts/validation"
 )
 
 func parse(fname string, outdir string, psiOnly bool) {
 	var pkts chan *ts.TsPkt
+
+	// PCR PID -> PCR values
+	var progPcrList = make(map[int][]validation.PcrInfo)
 
 	pkts = ts.ParseFile(fname)
 	psiParser := ts.NewPsiParser()
@@ -21,7 +25,13 @@ func parse(fname string, outdir string, psiOnly bool) {
 	}
 
 	streams := psiParser.GetStreams()
+
 	pcrs := psiParser.GetPcrs()
+	for pcrPid, _ := range pcrs {
+		// Default PCR list length: 1500 = 25Hz * 60s
+		progPcrList[pcrPid] = make([]validation.PcrInfo, 0)
+	}
+
 	records := make(map[int]ts.Record)
 	for pid, s := range streams {
 		records[pid] = ts.CreateRecord(pid, ts.GetStreamType(s))
@@ -31,6 +41,10 @@ func parse(fname string, outdir string, psiOnly bool) {
 	for pkt := range pkts {
 		if pcr, ok := pkt.PCR(); ok {
 			if pids, ok := pcrs[pkt.Pid]; ok {
+				// Save the PCR value
+				progPcrList[pkt.Pid] = append(
+					progPcrList[pkt.Pid],
+					validation.PcrInfo{pkt.Pos, pcr})
 				for _, pid := range pids {
 					records[pid].NotifyTime(pcr, pkt.Pos)
 				}
@@ -40,6 +54,10 @@ func parse(fname string, outdir string, psiOnly bool) {
 		if record, ok := records[pkt.Pid]; ok {
 			record.Process(pkt)
 		}
+	}
+
+	for pcrPid, pcrList := range progPcrList {
+		validation.CheckPcrInterval(outdir, pcrPid, pcrList)
 	}
 
 	for _, record := range records {
