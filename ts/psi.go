@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"encoding/json"
+	"strconv"
 )
 
 var StreamTypeString map[int]string = map[int]string{
@@ -42,14 +44,18 @@ var DescriptorTagString map[int]string = map[int]string{
 	0x04: "hierarchy_descriptor",
 	0x05: "registration_descriptor",
 	0x0A: "ISO_639_language_descriptor",
+	0x0E: "maximum_bitrate_descriptor",
 	// ETSI EN 300 468
+	0x45: "vbi_data_descriptor",
+	0x46: "vbi_teletext_descriptor",
 	0x56: "teletext_descriptor",
 	0x59: "subtitling_descriptor",
 	// ATSC A/52
 	0x6A: "AC-3_descriptor",              // DVB
 	0x81: "AC-3_audio_stream_descriptor", // ATSC
 	// Random stuff
-	0xDD: "harmonic_descriptor",
+	0xDD: "harmonic_aac_bitrate_descriptor",
+	0xDE: "harmonic_h264_bitrate_descriptor",
 }
 
 func GetDescriptorTabString(tag int) string {
@@ -79,11 +85,11 @@ func ParsePat(data []byte) *Pat {
 	pat.programs = make(map[int]Program)
 	for section_length > 0 {
 		program := Program{}
-		program.program_number = r.ReadBit(16)
-		if program.program_number != 0 {
+		program.Number = r.ReadBit(16)
+		if program.Number != 0 {
 			r.SkipBit(3)
-			program.pid = r.ReadBit(13)
-			pat.programs[program.pid] = program
+			program.PmtPid = r.ReadBit(13)
+			pat.programs[program.PmtPid] = program
 		} else {
 			r.SkipByte(2)
 		}
@@ -117,7 +123,7 @@ func ParsePmt(data []byte) *Pmt {
 	for section_length > 0 {
 		s := Stream{}
 		n := ParseStream(&s, r)
-		pmt.streams[s.elementary_pid] = s
+		pmt.streams[s.Pid] = s
 		section_length -= n
 	}
 	pmt.crc = r.ReadBit(32)
@@ -126,8 +132,9 @@ func ParsePmt(data []byte) *Pmt {
 
 func ParseStream(stream *Stream, r *Reader) int {
 	stream.stream_type = r.ReadBit(8)
+	stream.StreamType = GetStreamType(*stream)
 	r.SkipBit(3)
-	stream.elementary_pid = r.ReadBit(13)
+	stream.Pid = r.ReadBit(13)
 	r.SkipBit(4)
 	stream.es_info_length = r.ReadBit(12)
 	es_info_length := stream.es_info_length
@@ -136,8 +143,9 @@ func ParseStream(stream *Stream, r *Reader) int {
 		descriptor_length := r.ReadBit(8)
 		d := Descriptor{}
 		d.tag = descriptor_tag
+		d.Tag = GetDescriptorTabString(d.tag)
 		d.data = r.Data[r.Base : r.Base+descriptor_length]
-		stream.descriptors = append(stream.descriptors, d)
+		stream.Descriptors = append(stream.Descriptors, d)
 		es_info_length -= 2 + descriptor_length
 		r.SkipByte(descriptor_length)
 	}
@@ -159,16 +167,22 @@ func ParseLangDescriptor(data []byte) ISO639LanguageDescriptor {
 	return lang
 }
 
+type Info struct {
+	Programs map[string]Program
+}
+
 type Program struct {
-	program_number int
-	pid            int
+	Number int
+	PmtPid            int
+	Streams map[string]Stream
 }
 
 type Stream struct {
 	stream_type    int
-	elementary_pid int
+	StreamType string
+	Pid int
 	es_info_length int
-	descriptors    []Descriptor
+	Descriptors    []Descriptor
 }
 
 type Pat struct {
@@ -201,6 +215,7 @@ type Pmt struct {
 
 type Descriptor struct {
 	tag  int
+	Tag string
 	data []byte
 }
 
@@ -229,6 +244,7 @@ type PsiParser struct {
 	Pmts    map[int]*Pmt
 	Strs    map[int]Stream
 	Pcrs    map[int][]int
+	Info
 }
 
 func (p *PsiParser) Parse(pkt *TsPkt) bool {
@@ -269,8 +285,8 @@ func (p *PsiParser) Parse(pkt *TsPkt) bool {
 func (p *PsiParser) ParseDone() {
 	for _, pmt := range p.Pmts {
 		for _, stream := range pmt.streams {
-			p.Strs[stream.elementary_pid] = stream
-			p.Pcrs[pmt.pcr_pid] = append(p.Pcrs[pmt.pcr_pid], stream.elementary_pid)
+			p.Strs[stream.Pid] = stream
+			p.Pcrs[pmt.pcr_pid] = append(p.Pcrs[pmt.pcr_pid], stream.Pid)
 		}
 	}
 }
@@ -307,11 +323,11 @@ func (p *PsiParser) Report(root string) {
 	defer w.Close()
 
 	printDescriptor := func(stream Stream) {
-		if len(stream.descriptors) == 0 {
+		if len(stream.Descriptors) == 0 {
 			return
 		}
 		fmt.Fprintf(w, "\t\tdescriptors:\n")
-		for _, descriptor := range stream.descriptors {
+		for _, descriptor := range stream.Descriptors {
 			fmt.Fprintf(w, "\t\t\t")
 			fmt.Fprintf(w, "%v", GetDescriptorTabString(descriptor.tag))
 			switch descriptor.tag {
@@ -327,14 +343,32 @@ func (p *PsiParser) Report(root string) {
 	}
 
 	for _, program := range p.Pat.programs {
-		pmt := p.Pmts[program.pid]
+		pmt := p.Pmts[program.PmtPid]
 		fmt.Fprintf(w, "[program] num: %v, pmt: %v, pcr: %v\n",
-			program.program_number, program.pid, pmt.pcr_pid)
+			program.Number, program.PmtPid, pmt.pcr_pid)
 		for _, stream := range pmt.streams {
 			fmt.Fprintf(w, "\t")
 			fmt.Fprintf(w, "[stream] pid: %v, type: %v\n",
-				stream.elementary_pid, GetStreamType(stream))
+				stream.Pid, GetStreamType(stream))
 			printDescriptor(stream)
 		}
 	}
+
+	jsonFileName := filepath.Join(root, "psi.json")
+	jsonFile, err := os.Create(jsonFileName)
+	if err != nil {
+		panic(err)
+	}
+	defer jsonFile.Close()
+	p.Info.Programs = make(map[string]Program)
+	for num, program := range p.Pat.programs {
+		program.Streams = make(map[string]Stream)
+		p.Info.Programs[strconv.Itoa(num)] = program
+		pmt := p.Pmts[program.PmtPid]
+		for pid, stream := range pmt.streams {
+			program.Streams[strconv.Itoa(pid)] = stream
+		}
+	}
+	buf, _ := json.MarshalIndent(p.Info, "", "  ")
+	fmt.Fprintln(jsonFile, string(buf))
 }
