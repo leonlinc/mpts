@@ -1,15 +1,14 @@
 package main
 
 import (
-	"llin/ts"
-	"llin/ts/validation"
+	"github.com/xjbt/ts"
 )
 
 func parse(fname string, outdir string, psiOnly bool) {
 	var pkts chan *ts.TsPkt
 
 	// PCR PID -> PCR values
-	var progPcrList = make(map[int][]validation.PcrInfo)
+	var progPcrList = make(map[int][]ts.PcrInfo)
 
 	pkts = ts.ParseFile(fname)
 	psiParser := ts.NewPsiParser()
@@ -29,7 +28,7 @@ func parse(fname string, outdir string, psiOnly bool) {
 	pcrs := psiParser.GetPcrs()
 	for pcrPid, _ := range pcrs {
 		// Default PCR list length: 1500 = 25Hz * 60s
-		progPcrList[pcrPid] = make([]validation.PcrInfo, 0)
+		progPcrList[pcrPid] = make([]ts.PcrInfo, 0)
 	}
 
 	records := make(map[int]ts.Record)
@@ -44,7 +43,7 @@ func parse(fname string, outdir string, psiOnly bool) {
 				// Save the PCR value
 				progPcrList[pkt.Pid] = append(
 					progPcrList[pkt.Pid],
-					validation.PcrInfo{pkt.Pos, pcr})
+					ts.PcrInfo{pkt.Pos, pcr})
 				for _, pid := range pids {
 					records[pid].NotifyTime(pcr, pkt.Pos)
 				}
@@ -57,7 +56,7 @@ func parse(fname string, outdir string, psiOnly bool) {
 	}
 
 	for pcrPid, pcrList := range progPcrList {
-		validation.CheckPcrInterval(outdir, pcrPid, pcrList)
+		ts.CheckPcrInterval(outdir, pcrPid, pcrList)
 	}
 
 	for _, record := range records {
