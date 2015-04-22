@@ -1,11 +1,12 @@
 package ts
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"encoding/json"
 	"strconv"
+	"encoding/hex"
 )
 
 var StreamTypeString map[int]string = map[int]string{
@@ -145,6 +146,7 @@ func ParseStream(stream *Stream, r *Reader) int {
 		d.tag = descriptor_tag
 		d.Tag = GetDescriptorTabString(d.tag)
 		d.data = r.Data[r.Base : r.Base+descriptor_length]
+		d.Data = hex.EncodeToString(d.data)
 		stream.Descriptors = append(stream.Descriptors, d)
 		es_info_length -= 2 + descriptor_length
 		r.SkipByte(descriptor_length)
@@ -172,15 +174,15 @@ type Info struct {
 }
 
 type Program struct {
-	Number int
-	PmtPid            int
+	Number  int
+	PmtPid  int
 	Streams map[string]Stream
 }
 
 type Stream struct {
 	stream_type    int
-	StreamType string
-	Pid int
+	StreamType     string
+	Pid            int
 	es_info_length int
 	Descriptors    []Descriptor
 }
@@ -215,8 +217,9 @@ type Pmt struct {
 
 type Descriptor struct {
 	tag  int
-	Tag string
+	Tag  string
 	data []byte
+	Data string
 }
 
 type RegistrationDescriptor struct {

@@ -32,7 +32,7 @@ func CheckPcrInterval(root string, pcrPid int, pcrList []PcrInfo) {
 		}
 		prevPcr = pcr
 
-		cols := []string {
+		cols := []string{
 			strconv.FormatInt(pcrPos, 10),
 			strconv.FormatInt(pcr, 10),
 			strconv.FormatInt(diff, 10),
