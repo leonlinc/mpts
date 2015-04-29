@@ -182,8 +182,8 @@ func ParseStream(stream *Stream, r *Reader) int {
 		descriptor_tag := r.ReadBit(8)
 		descriptor_length := r.ReadBit(8)
 		d := Descriptor{}
-		d.tag = descriptor_tag
-		d.Tag = GetDescriptorTabString(d.tag)
+		d.Tag = descriptor_tag
+		d.TagName = GetDescriptorTabString(d.Tag)
 		d.data = r.Data[r.Base : r.Base+descriptor_length]
 		d.Data = hex.EncodeToString(d.data)
 		stream.Descriptors = append(stream.Descriptors, d)
@@ -255,8 +255,8 @@ type Pmt struct {
 }
 
 type Descriptor struct {
-	tag  int
-	Tag  string
+	Tag  int
+	TagName  string
 	data []byte
 	Data string
 }
@@ -371,8 +371,8 @@ func (p *PsiParser) Report(root string) {
 		fmt.Fprintf(w, "\t\tdescriptors:\n")
 		for _, descriptor := range stream.Descriptors {
 			fmt.Fprintf(w, "\t\t\t")
-			fmt.Fprintf(w, "%v", GetDescriptorTabString(descriptor.tag))
-			switch descriptor.tag {
+			fmt.Fprintf(w, "(%v) %v", descriptor.Tag, descriptor.TagName)
+			switch descriptor.Tag {
 			case 0x05:
 				reg := ParseRegDescriptor(descriptor.data)
 				fmt.Fprintf(w, ": %v", reg.format_identifier)
