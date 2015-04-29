@@ -17,12 +17,23 @@ func ParseTsPkt(data []byte) *TsPkt {
 	afctrl := r.ReadBit(2)
 	pkt.CC = r.ReadBit(4)
 	if afctrl == 2 || afctrl == 3 {
+		pkt.AdaptField = &AdaptField{}
 		aflen := r.ReadBit(8)
 		if aflen > 0 {
 			flags := r.ReadBit(8)
 			if (flags & 0x10) != 0 {
 				pkt.hasPCR = true
 				pkt.pcr = ParsePcr(r)
+			}
+			if (flags & 0x08) != 0 {
+				ParsePcr(r) // OPCR
+			}
+			if (flags & 0x04) != 0 {
+				r.ReadBit(8)
+			}
+			if (flags & 0x02) != 0 {
+				privLen := r.ReadBit(8)
+				pkt.AdaptField.PrivateData = r.Data[r.Base:r.Base+privLen]
 			}
 		}
 		pkt.Data = data[4+1+aflen:]
@@ -54,11 +65,62 @@ func ParsePcr(r *Reader) int64 {
 	return base*300 + ext
 }
 
+type AdaptField struct {
+	PrivateData []byte
+}
+
+type AuInfo struct {
+	CodingFormat int
+	CodingType int
+	RefPicIdc int
+	PicStruct int
+	PtsPresent int
+	ProfileInfoPresent int
+	StreamInfoPresent int
+	TrickModeInfoPresent int
+	Pts int64
+}
+
+type AdaptFieldPrivData struct {
+	FieldTag byte
+	FieldLen byte
+	*AuInfo
+}
+
+func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
+	var privList []AdaptFieldPrivData
+	for len(data) > 0 {
+		priv := AdaptFieldPrivData{}
+		priv.FieldTag = data[0]
+		priv.FieldLen = data[1]
+		if priv.FieldTag == 2 {
+			r := &Reader{Data: data[2:]}
+
+			auInfo := &AuInfo{}
+			auInfo.CodingFormat = r.ReadBit(4)
+			auInfo.CodingType = r.ReadBit(4)
+			auInfo.RefPicIdc = r.ReadBit(2)
+			auInfo.PicStruct = r.ReadBit(2)
+			auInfo.PtsPresent = r.ReadBit(1)
+			auInfo.ProfileInfoPresent = r.ReadBit(1)
+			auInfo.StreamInfoPresent = r.ReadBit(1)
+			auInfo.TrickModeInfoPresent = r.ReadBit(1)
+			auInfo.Pts = r.ReadBit64(32)
+
+			priv.AuInfo = auInfo
+		}
+		privList = append(privList, priv)
+		data = data[2+priv.FieldLen:]
+	}
+	return privList
+}
+
 type TsPkt struct {
 	SyncByte int
 	PUSI     int
 	Pid      int
 	CC       int
+	*AdaptField
 	Data     []byte
 	pcr      int64
 	hasPCR   bool
