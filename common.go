@@ -74,11 +74,17 @@ type AuInfo struct {
 	CodingType int
 	RefPicIdc int
 	PicStruct int
-	PtsPresent int
-	ProfileInfoPresent int
-	StreamInfoPresent int
-	TrickModeInfoPresent int
+	PtsPresent bool
+	ProfileInfoPresent bool
+	StreamInfoPresent bool
+	TrickModeInfoPresent bool
 	Pts int64
+	// stream info
+	AuFrameRateCode int
+	// profile info
+	AuProfile int
+	AuAvcFlags int
+	AuLevel int
 }
 
 type AdaptFieldPrivData struct {
@@ -99,13 +105,30 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 			auInfo := &AuInfo{}
 			auInfo.CodingFormat = r.ReadBit(4)
 			auInfo.CodingType = r.ReadBit(4)
-			auInfo.RefPicIdc = r.ReadBit(2)
-			auInfo.PicStruct = r.ReadBit(2)
-			auInfo.PtsPresent = r.ReadBit(1)
-			auInfo.ProfileInfoPresent = r.ReadBit(1)
-			auInfo.StreamInfoPresent = r.ReadBit(1)
-			auInfo.TrickModeInfoPresent = r.ReadBit(1)
-			auInfo.Pts = r.ReadBit64(32)
+
+			if priv.FieldLen > 1 {
+				auInfo.RefPicIdc = r.ReadBit(2)
+				auInfo.PicStruct = r.ReadBit(2)
+				auInfo.PtsPresent = r.ReadBit(1) != 0
+				auInfo.ProfileInfoPresent = r.ReadBit(1) != 0
+				auInfo.StreamInfoPresent = r.ReadBit(1) != 0
+				auInfo.TrickModeInfoPresent = r.ReadBit(1) != 0
+			}
+
+			if auInfo.PtsPresent {
+				auInfo.Pts = r.ReadBit64(32)
+			}
+
+			if auInfo.StreamInfoPresent {
+				r.SkipBit(4)
+				auInfo.AuFrameRateCode = r.ReadBit(4)
+			}
+
+			if auInfo.ProfileInfoPresent {
+				auInfo.AuProfile = r.ReadBit(8)
+				auInfo.AuAvcFlags = r.ReadBit(8)
+				auInfo.AuLevel = r.ReadBit(8)
+			}
 
 			priv.AuInfo = auInfo
 		}
