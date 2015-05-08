@@ -1,11 +1,12 @@
 package ts
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"encoding/json"
 	"strconv"
+	"encoding/hex"
 )
 
 var StreamTypeString map[int]string = map[int]string{
@@ -37,14 +38,53 @@ func GetStreamType(s Stream) string {
 
 var DescriptorTagString map[int]string = map[int]string{
 	// ISO/IEC 13818-1
-	0x00: "Reserved",
-	0x01: "Reserved",
-	0x02: "video_stream_descriptor",
-	0x03: "audio_stream_descriptor",
-	0x04: "hierarchy_descriptor",
-	0x05: "registration_descriptor",
-	0x0A: "ISO_639_language_descriptor",
-	0x0E: "maximum_bitrate_descriptor",
+	0: "reserved",
+	1: "forbidden",
+	2: "video_stream_descriptor",
+	3: "audio_stream_descriptor",
+	4: "hierarchy_descriptor",
+	5: "registration_descriptor",
+	6: "data_stream_alignment_descriptor",
+	7: "target_background_grid_descriptor",
+	8: "video_window_descriptor",
+	9: "CA_descriptor",
+	10: "ISO_639_language_descriptor",
+	11: "system_clock_descriptor",
+	12: "multiplex_buffer_utilization_descriptor",
+	13: "copyright_descriptor",
+	14: "maximum_bitrate_descriptor",
+	15: "private_data_indicator_descriptor",
+	16: "smoothing_buffer_descriptor",
+	17: "STD_descriptor",
+	18: "IBP_descriptor",
+	27: "MPEG-4_video_descriptor",
+	28: "MPEG-4_audio_descriptor",
+	29: "IOD_descriptor",
+	30: "SL_descriptor",
+	31: "FMC_descriptor",
+	32: "external_ES_ID_descriptor",
+	33: "MuxCode_descriptor",
+	34: "FmxBufferSize_descriptor",
+	35: "multiplexbuffer_descriptor",
+	36: "content_labeling_descriptor",
+	37: "metadata_pointer_descriptor",
+	38: "metadata_descriptor",
+	39: "metadata_STD_descriptor",
+	40: "AVC video descriptor",
+	41: "IPMP_descriptor",
+	42: "AVC timing and HRD descriptor",
+	43: "MPEG-2_AAC_audio_descriptor",
+	44: "FlexMuxTiming_descriptor",
+	45: "MPEG-4_text_descriptor",
+	46: "MPEG-4_audio_extension_descriptor",
+	47: "auxiliary_video_stream_descriptor",
+	48: "SVC extension descriptor",
+	49: "MVC extension descriptor",
+	50: "J2K video descriptor",
+	51: "MVC operation point descriptor",
+	52: "MPEG2_stereoscopic_video_format_descriptor",
+	53: "Stereoscopic_program_info_descriptor",
+	54: "Stereoscopic_video_info_descriptor",
 	// ETSI EN 300 468
 	0x45: "vbi_data_descriptor",
 	0x46: "vbi_teletext_descriptor",
@@ -142,9 +182,10 @@ func ParseStream(stream *Stream, r *Reader) int {
 		descriptor_tag := r.ReadBit(8)
 		descriptor_length := r.ReadBit(8)
 		d := Descriptor{}
-		d.tag = descriptor_tag
-		d.Tag = GetDescriptorTabString(d.tag)
+		d.Tag = descriptor_tag
+		d.TagName = GetDescriptorTabString(d.Tag)
 		d.data = r.Data[r.Base : r.Base+descriptor_length]
+		d.Data = hex.EncodeToString(d.data)
 		stream.Descriptors = append(stream.Descriptors, d)
 		es_info_length -= 2 + descriptor_length
 		r.SkipByte(descriptor_length)
@@ -172,15 +213,15 @@ type Info struct {
 }
 
 type Program struct {
-	Number int
-	PmtPid            int
+	Number  int
+	PmtPid  int
 	Streams map[string]Stream
 }
 
 type Stream struct {
 	stream_type    int
-	StreamType string
-	Pid int
+	StreamType     string
+	Pid            int
 	es_info_length int
 	Descriptors    []Descriptor
 }
@@ -214,9 +255,10 @@ type Pmt struct {
 }
 
 type Descriptor struct {
-	tag  int
-	Tag string
+	Tag  int
+	TagName  string
 	data []byte
+	Data string
 }
 
 type RegistrationDescriptor struct {
@@ -329,8 +371,8 @@ func (p *PsiParser) Report(root string) {
 		fmt.Fprintf(w, "\t\tdescriptors:\n")
 		for _, descriptor := range stream.Descriptors {
 			fmt.Fprintf(w, "\t\t\t")
-			fmt.Fprintf(w, "%v", GetDescriptorTabString(descriptor.tag))
-			switch descriptor.tag {
+			fmt.Fprintf(w, "(%v) %v", descriptor.Tag, descriptor.TagName)
+			switch descriptor.Tag {
 			case 0x05:
 				reg := ParseRegDescriptor(descriptor.data)
 				fmt.Fprintf(w, ": %v", reg.format_identifier)
