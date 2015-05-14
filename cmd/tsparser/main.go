@@ -8,8 +8,8 @@ import (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "tstool"
-	app.Usage = "The tool for transport stream"
+	app.Name = "tsparser"
+	app.Usage = "transport stream parser"
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
 			Name:  "psi-only",
