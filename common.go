@@ -87,10 +87,19 @@ type AuInfo struct {
 	AuLevel int
 }
 
+type DirecTvTimeCode struct {
+	DropFrameFlag bool
+	Hours int
+	Minutes int
+	Seconds int
+	Pictures int
+}
+
 type AdaptFieldPrivData struct {
 	FieldTag byte
 	FieldLen byte
 	*AuInfo
+	*DirecTvTimeCode
 }
 
 func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
@@ -99,7 +108,7 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 		priv := AdaptFieldPrivData{}
 		priv.FieldTag = data[0]
 		priv.FieldLen = data[1]
-		if priv.FieldTag == 2 {
+		if priv.FieldTag == 0x02 {
 			r := &Reader{Data: data[2:]}
 
 			auInfo := &AuInfo{}
@@ -131,6 +140,16 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 			}
 
 			priv.AuInfo = auInfo
+		} else if priv.FieldTag == 0xA0 {
+			r := &Reader{Data: data[2:]}
+
+			tcInfo := &DirecTvTimeCode{}
+			tcInfo.DropFrameFlag = r.ReadBit(1) != 0
+			tcInfo.Hours = r.ReadBit(5)
+			tcInfo.Minutes = r.ReadBit(6)
+			tcInfo.Seconds = r.ReadBit(6)
+			tcInfo.Pictures = r.ReadBit(6)
+			priv.DirecTvTimeCode = tcInfo
 		}
 		privList = append(privList, priv)
 		data = data[2+priv.FieldLen:]
