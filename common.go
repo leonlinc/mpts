@@ -95,6 +95,15 @@ type DirecTvTimeCode struct {
 	Pictures int
 }
 
+type BroadcastId struct {
+	Identifier int
+	Origin int
+	ServiceName string
+	TransportStreamId int
+	MajorChannelNumber int
+	MinorChannelNumber int
+}
+
 type AdaptFieldPrivData struct {
 	FieldTag byte
 	FieldLen byte
@@ -150,6 +159,19 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 			tcInfo.Seconds = r.ReadBit(6)
 			tcInfo.Pictures = r.ReadBit(6)
 			priv.DirecTvTimeCode = tcInfo
+		} else if priv.FieldTag == 0xAD {
+			r := &Reader{Data: data[2:]}
+			biInfo := &BroadcastId{}
+			biInfo.Identifier = r.ReadBit(32)
+			biInfo.Origin = r.ReadBit(8)
+			biInfo.ServiceName = string(r.Data[r.Base:r.Base+14]);
+			r.SkipByte(14)
+			biInfo.TransportStreamId = r.ReadBit(16)
+			if biInfo.Origin == 1 {
+				r.ReadBit(4)
+				biInfo.MajorChannelNumber = r.ReadBit(10)
+				biInfo.MinorChannelNumber = r.ReadBit(10)
+			}
 		}
 		privList = append(privList, priv)
 		data = data[2+priv.FieldLen:]
