@@ -109,6 +109,7 @@ type AdaptFieldPrivData struct {
 	FieldLen byte
 	*AuInfo
 	*DirecTvTimeCode
+	*BroadcastId
 }
 
 func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
@@ -172,6 +173,7 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 				biInfo.MajorChannelNumber = r.ReadBit(10)
 				biInfo.MinorChannelNumber = r.ReadBit(10)
 			}
+			priv.BroadcastId = biInfo
 		}
 		privList = append(privList, priv)
 		data = data[2+priv.FieldLen:]
