@@ -84,7 +84,11 @@ func parse(fname string, outdir string, psiOnly bool) {
 
 	pkts = ts.ParseFile(fname)
 	for pkt := range pkts {
-		loggers[pkt.Pid].LogAdaptFieldPrivData(pkt)
+		logger := loggers[pkt.Pid]
+		if logger != nil {
+			logger.LogAdaptFieldPrivData(pkt)
+		}
+
 		if pcr, ok := pkt.PCR(); ok {
 			if pids, ok := pcrs[pkt.Pid]; ok {
 				// Save the PCR value
