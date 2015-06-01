@@ -33,7 +33,7 @@ func ParseTsPkt(data []byte) *TsPkt {
 			}
 			if (flags & 0x02) != 0 {
 				privLen := r.ReadBit(8)
-				pkt.AdaptField.PrivateData = r.Data[r.Base:r.Base+privLen]
+				pkt.AdaptField.PrivateData = r.Data[r.Base : r.Base+privLen]
 			}
 		}
 		pkt.Data = data[4+1+aflen:]
@@ -70,36 +70,36 @@ type AdaptField struct {
 }
 
 type AuInfo struct {
-	CodingFormat int
-	CodingType int
-	RefPicIdc int
-	PicStruct int
-	PtsPresent bool
-	ProfileInfoPresent bool
-	StreamInfoPresent bool
+	CodingFormat         int
+	CodingType           int
+	RefPicIdc            int
+	PicStruct            int
+	PtsPresent           bool
+	ProfileInfoPresent   bool
+	StreamInfoPresent    bool
 	TrickModeInfoPresent bool
-	Pts int64
+	Pts                  int64
 	// stream info
 	AuFrameRateCode int
 	// profile info
-	AuProfile int
+	AuProfile  int
 	AuAvcFlags int
-	AuLevel int
+	AuLevel    int
 }
 
 type DirecTvTimeCode struct {
 	DropFrameFlag bool
-	Hours int
-	Minutes int
-	Seconds int
-	Pictures int
+	Hours         int
+	Minutes       int
+	Seconds       int
+	Pictures      int
 }
 
 type BroadcastId struct {
-	Identifier int
-	Origin int
-	ServiceName string
-	TransportStreamId int
+	Identifier         int
+	Origin             int
+	ServiceName        string
+	TransportStreamId  int
 	MajorChannelNumber int
 	MinorChannelNumber int
 }
@@ -165,7 +165,7 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 			biInfo := &BroadcastId{}
 			biInfo.Identifier = r.ReadBit(32)
 			biInfo.Origin = r.ReadBit(8)
-			biInfo.ServiceName = string(r.Data[r.Base:r.Base+14]);
+			biInfo.ServiceName = string(r.Data[r.Base : r.Base+14])
 			r.SkipByte(14)
 			biInfo.TransportStreamId = r.ReadBit(16)
 			if biInfo.Origin == 1 {
@@ -187,10 +187,10 @@ type TsPkt struct {
 	Pid      int
 	CC       int
 	*AdaptField
-	Data     []byte
-	pcr      int64
-	hasPCR   bool
-	Pos      int64
+	Data   []byte
+	pcr    int64
+	hasPCR bool
+	Pos    int64
 }
 
 func (p TsPkt) PCR() (int64, bool) {

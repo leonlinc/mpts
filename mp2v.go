@@ -2,20 +2,20 @@ package ts
 
 import (
 	"bytes"
-	"fmt"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"encoding/json"
 )
 
 type Mp2vUserData struct {
-	Pos int64
-	AFD *int
+	Pos     int64
+	AFD     *int
 	Caption bool
-	Bar bool
+	Bar     bool
 }
 
 func ParseATSC(data []byte) (cc bool, bar bool) {
@@ -72,9 +72,9 @@ func ParseMp2vHeaders(data []byte) []*Mp2vUserData {
 
 type Mp2vRecord struct {
 	BaseRecord
-	Pid    int
-	curpkt *PesPkt
-	Pkts   []*PesPkt
+	Pid      int
+	curpkt   *PesPkt
+	Pkts     []*PesPkt
 	UserData []*Mp2vUserData
 }
 

@@ -1,12 +1,12 @@
 package ts
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
-	"encoding/hex"
 )
 
 var StreamTypeString map[int]string = map[int]string{
@@ -38,16 +38,16 @@ func GetStreamType(s Stream) string {
 
 var DescriptorTagString map[int]string = map[int]string{
 	// ISO/IEC 13818-1
-	0: "reserved",
-	1: "forbidden",
-	2: "video_stream_descriptor",
-	3: "audio_stream_descriptor",
-	4: "hierarchy_descriptor",
-	5: "registration_descriptor",
-	6: "data_stream_alignment_descriptor",
-	7: "target_background_grid_descriptor",
-	8: "video_window_descriptor",
-	9: "CA_descriptor",
+	0:  "reserved",
+	1:  "forbidden",
+	2:  "video_stream_descriptor",
+	3:  "audio_stream_descriptor",
+	4:  "hierarchy_descriptor",
+	5:  "registration_descriptor",
+	6:  "data_stream_alignment_descriptor",
+	7:  "target_background_grid_descriptor",
+	8:  "video_window_descriptor",
+	9:  "CA_descriptor",
 	10: "ISO_639_language_descriptor",
 	11: "system_clock_descriptor",
 	12: "multiplex_buffer_utilization_descriptor",
@@ -255,10 +255,10 @@ type Pmt struct {
 }
 
 type Descriptor struct {
-	Tag  int
-	TagName  string
-	data []byte
-	Data string
+	Tag     int
+	TagName string
+	data    []byte
+	Data    string
 }
 
 type RegistrationDescriptor struct {
