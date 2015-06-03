@@ -105,3 +105,21 @@ func parse(fname string, outdir string, psiOnly bool) {
 		record.Report(outdir)
 	}
 }
+
+func extract(fname string, outdir string, pid int) {
+	var pkts chan *ts.TsPkt
+	pkts = ts.ParseFile(fname)
+
+	of := filepath.Join(outdir, strconv.Itoa(pid)+".es")
+	f, err := os.Create(of)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	for pkt := range pkts {
+	    if pkt.Pid == pid {
+	        f.Write(pkt.Data)
+	    }
+	}
+}
