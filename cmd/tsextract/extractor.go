@@ -1,8 +1,8 @@
 package main
 
 import (
-	"code.google.com/p/gopacket"
-	"code.google.com/p/gopacket/pcap"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
 	"os"
 )
 
