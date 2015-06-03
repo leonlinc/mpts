@@ -201,13 +201,14 @@ func (p TsPkt) PCR() (int64, bool) {
 }
 
 type PesPkt struct {
-	Pos    int64
-	Size   int64
-	Pcr    int64
-	PcrPos int64
-	Pts    int64
-	Dts    int64
-	Data   []byte
+	Pos      int64
+	Size     int64
+	StreamId int
+	Pcr      int64
+	PcrPos   int64
+	Pts      int64
+	Dts      int64
+	Data     []byte
 }
 
 func (p *PesPkt) Read(pkt *TsPkt) (n int) {
@@ -215,6 +216,7 @@ func (p *PesPkt) Read(pkt *TsPkt) (n int) {
 
 	r.SkipByte(3)
 	streamId := r.ReadBit(8)
+	p.StreamId = streamId
 	r.SkipByte(2)
 	switch {
 	case streamId >= 0xC0 && streamId < 0xF0:
@@ -233,6 +235,8 @@ func (p *PesPkt) Read(pkt *TsPkt) (n int) {
 			p.Dts = ParsePts(r)
 			n += 10
 		}
+	case streamId == 0xBE:
+		// Padding stream
 	default:
 		fmt.Println("Unknown stream id", streamId)
 	}

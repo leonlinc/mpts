@@ -45,7 +45,11 @@ func (s *PesRecord) Process(pkt *TsPkt) {
 		var startcode = []byte{0, 0, 1}
 		if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
 			hlen := s.curpkt.Read(pkt)
-			pkt.Data = pkt.Data[hlen:]
+			if s.curpkt.StreamId == 0xBE {
+				s.curpkt = nil
+			} else {
+				pkt.Data = pkt.Data[hlen:]
+			}
 		}
 	}
 	if s.curpkt != nil {
