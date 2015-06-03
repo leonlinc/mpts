@@ -33,7 +33,7 @@ func ParseTsPkt(data []byte) *TsPkt {
 			}
 			if (flags & 0x02) != 0 {
 				privLen := r.ReadBit(8)
-				pkt.AdaptField.PrivateData = r.Data[r.Base:r.Base+privLen]
+				pkt.AdaptField.PrivateData = r.Data[r.Base : r.Base+privLen]
 			}
 		}
 		pkt.Data = data[4+1+aflen:]
@@ -70,21 +70,46 @@ type AdaptField struct {
 }
 
 type AuInfo struct {
-	CodingFormat int
-	CodingType int
-	RefPicIdc int
-	PicStruct int
-	PtsPresent int
-	ProfileInfoPresent int
-	StreamInfoPresent int
-	TrickModeInfoPresent int
-	Pts int64
+	CodingFormat         int
+	CodingType           int
+	RefPicIdc            int
+	PicStruct            int
+	PtsPresent           bool
+	ProfileInfoPresent   bool
+	StreamInfoPresent    bool
+	TrickModeInfoPresent bool
+	Pts                  int64
+	// stream info
+	AuFrameRateCode int
+	// profile info
+	AuProfile  int
+	AuAvcFlags int
+	AuLevel    int
+}
+
+type DirecTvTimeCode struct {
+	DropFrameFlag bool
+	Hours         int
+	Minutes       int
+	Seconds       int
+	Pictures      int
+}
+
+type BroadcastId struct {
+	Identifier         int
+	Origin             int
+	ServiceName        string
+	TransportStreamId  int
+	MajorChannelNumber int
+	MinorChannelNumber int
 }
 
 type AdaptFieldPrivData struct {
 	FieldTag byte
 	FieldLen byte
 	*AuInfo
+	*DirecTvTimeCode
+	*BroadcastId
 }
 
 func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
@@ -93,21 +118,62 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 		priv := AdaptFieldPrivData{}
 		priv.FieldTag = data[0]
 		priv.FieldLen = data[1]
-		if priv.FieldTag == 2 {
+		if priv.FieldTag == 0x02 {
 			r := &Reader{Data: data[2:]}
 
 			auInfo := &AuInfo{}
 			auInfo.CodingFormat = r.ReadBit(4)
 			auInfo.CodingType = r.ReadBit(4)
-			auInfo.RefPicIdc = r.ReadBit(2)
-			auInfo.PicStruct = r.ReadBit(2)
-			auInfo.PtsPresent = r.ReadBit(1)
-			auInfo.ProfileInfoPresent = r.ReadBit(1)
-			auInfo.StreamInfoPresent = r.ReadBit(1)
-			auInfo.TrickModeInfoPresent = r.ReadBit(1)
-			auInfo.Pts = r.ReadBit64(32)
+
+			if priv.FieldLen > 1 {
+				auInfo.RefPicIdc = r.ReadBit(2)
+				auInfo.PicStruct = r.ReadBit(2)
+				auInfo.PtsPresent = r.ReadBit(1) != 0
+				auInfo.ProfileInfoPresent = r.ReadBit(1) != 0
+				auInfo.StreamInfoPresent = r.ReadBit(1) != 0
+				auInfo.TrickModeInfoPresent = r.ReadBit(1) != 0
+			}
+
+			if auInfo.PtsPresent {
+				auInfo.Pts = r.ReadBit64(32)
+			}
+
+			if auInfo.StreamInfoPresent {
+				r.SkipBit(4)
+				auInfo.AuFrameRateCode = r.ReadBit(4)
+			}
+
+			if auInfo.ProfileInfoPresent {
+				auInfo.AuProfile = r.ReadBit(8)
+				auInfo.AuAvcFlags = r.ReadBit(8)
+				auInfo.AuLevel = r.ReadBit(8)
+			}
 
 			priv.AuInfo = auInfo
+		} else if priv.FieldTag == 0xA0 {
+			r := &Reader{Data: data[2:]}
+
+			tcInfo := &DirecTvTimeCode{}
+			tcInfo.DropFrameFlag = r.ReadBit(1) != 0
+			tcInfo.Hours = r.ReadBit(5)
+			tcInfo.Minutes = r.ReadBit(6)
+			tcInfo.Seconds = r.ReadBit(6)
+			tcInfo.Pictures = r.ReadBit(6)
+			priv.DirecTvTimeCode = tcInfo
+		} else if priv.FieldTag == 0xAD {
+			r := &Reader{Data: data[2:]}
+			biInfo := &BroadcastId{}
+			biInfo.Identifier = r.ReadBit(32)
+			biInfo.Origin = r.ReadBit(8)
+			biInfo.ServiceName = string(r.Data[r.Base : r.Base+14])
+			r.SkipByte(14)
+			biInfo.TransportStreamId = r.ReadBit(16)
+			if biInfo.Origin == 1 {
+				r.ReadBit(4)
+				biInfo.MajorChannelNumber = r.ReadBit(10)
+				biInfo.MinorChannelNumber = r.ReadBit(10)
+			}
+			priv.BroadcastId = biInfo
 		}
 		privList = append(privList, priv)
 		data = data[2+priv.FieldLen:]
@@ -121,10 +187,10 @@ type TsPkt struct {
 	Pid      int
 	CC       int
 	*AdaptField
-	Data     []byte
-	pcr      int64
-	hasPCR   bool
-	Pos      int64
+	Data   []byte
+	pcr    int64
+	hasPCR bool
+	Pos    int64
 }
 
 func (p TsPkt) PCR() (int64, bool) {

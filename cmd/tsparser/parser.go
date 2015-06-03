@@ -15,6 +15,11 @@ type Logger struct {
 	AdaptFieldPrivDataLog *os.File
 }
 
+type AdaptOut struct {
+	Pos int64
+	Content ts.AdaptFieldPrivData
+}
+
 func newLogger(pid int, root string) *Logger {
 	logger := Logger{}
 	logger.Pid = pid
@@ -28,7 +33,7 @@ func (logger *Logger) LogAdaptFieldPrivData(pkt *ts.TsPkt) {
 	}
 	data := pkt.AdaptField.PrivateData
 	if logger.AdaptFieldPrivDataLog == nil {
-		fname := filepath.Join(logger.Root, strconv.Itoa(logger.Pid)+"-adaptfieldprivdatalog.csv")
+		fname := filepath.Join(logger.Root, strconv.Itoa(logger.Pid)+"-tspriv.csv")
 		var err error
 		logger.AdaptFieldPrivDataLog, err = os.Create(fname)
 		if err != nil {
@@ -37,8 +42,9 @@ func (logger *Logger) LogAdaptFieldPrivData(pkt *ts.TsPkt) {
 	}
 	privList := ts.ParseAdaptFieldPrivData(data)
 	for _, p := range privList {
-		c, _ := json.Marshal(p)
-		fmt.Fprintln(logger.AdaptFieldPrivDataLog, logger.Pid, pkt.Pos, string(c))
+		adaptOut := AdaptOut{pkt.Pos, p}
+		c, _ := json.Marshal(adaptOut)
+		fmt.Fprintln(logger.AdaptFieldPrivDataLog, string(c))
 	}
 }
 
@@ -78,7 +84,11 @@ func parse(fname string, outdir string, psiOnly bool) {
 
 	pkts = ts.ParseFile(fname)
 	for pkt := range pkts {
-		loggers[pkt.Pid].LogAdaptFieldPrivData(pkt)
+		logger := loggers[pkt.Pid]
+		if logger != nil {
+			logger.LogAdaptFieldPrivData(pkt)
+		}
+
 		if pcr, ok := pkt.PCR(); ok {
 			if pids, ok := pcrs[pkt.Pid]; ok {
 				// Save the PCR value

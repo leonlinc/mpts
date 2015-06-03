@@ -1,0 +1,156 @@
+package ts
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+type Mp2vUserData struct {
+	Pos     int64
+	AFD     *int
+	Caption bool
+	Bar     bool
+}
+
+func ParseATSC(data []byte) (cc bool, bar bool) {
+	code := data[0]
+	if code == 0x03 {
+		cc = true
+	} else if code == 0x06 {
+		bar = true
+	}
+	return
+}
+
+func ParseAFD(data []byte) (int, error) {
+	if data[0] == 0x41 {
+		format := data[1] & 0x0F
+		return int(format), nil
+	}
+	return 0, errors.New("Active format does not exist")
+}
+
+func ParseMp2vUserData(data []byte) *Mp2vUserData {
+	var result = &Mp2vUserData{}
+	var idATSC = []byte("GA94") // 0x47413934
+	var idAFD = []byte("DTG1")  // 0x44544731
+	if bytes.Compare(idATSC, data[0:4]) == 0 {
+		result.Caption, result.Bar = ParseATSC(data[4:])
+	} else if bytes.Compare(idAFD, data[0:4]) == 0 {
+		afd, err := ParseAFD(data[4:])
+		if err == nil {
+			result.AFD = &afd
+		}
+	}
+	return result
+}
+
+func ParseMp2vHeaders(data []byte) []*Mp2vUserData {
+	var result []*Mp2vUserData
+	var pos int
+	var startcode = []byte{0, 0, 1}
+	var startlen = len(startcode)
+	for pos+startlen+1 < len(data) {
+		if bytes.Compare(startcode, data[pos:pos+startlen]) == 0 {
+			pos += startlen
+			code := int(data[pos])
+			if code == 0xB2 {
+				r := ParseMp2vUserData(data[pos+1:])
+				result = append(result, r)
+			}
+		}
+		pos += 1
+	}
+	return result
+}
+
+type Mp2vRecord struct {
+	BaseRecord
+	Pid      int
+	curpkt   *PesPkt
+	Pkts     []*PesPkt
+	UserData []*Mp2vUserData
+}
+
+func (s *Mp2vRecord) Process(pkt *TsPkt) {
+	if pkt.PUSI == 1 {
+		if s.curpkt != nil {
+			userData := ParseMp2vHeaders(s.curpkt.Data)
+			for _, u := range userData {
+				u.Pos = s.curpkt.Pos
+			}
+			s.UserData = append(s.UserData, userData...)
+			s.Pkts = append(s.Pkts, s.curpkt)
+		}
+		s.curpkt = &PesPkt{}
+		s.curpkt.Pos = pkt.Pos
+		s.curpkt.Pcr = s.BaseRecord.PcrTime
+		var startcode = []byte{0, 0, 1}
+		if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
+			hlen := s.curpkt.Read(pkt)
+			pkt.Data = pkt.Data[hlen:]
+		}
+	}
+	if s.curpkt != nil {
+		s.curpkt.Size += int64(len(pkt.Data))
+		s.curpkt.Data = append(s.curpkt.Data, pkt.Data...)
+	}
+}
+
+func (s *Mp2vRecord) Flush() {
+	if s.curpkt != nil {
+		s.Pkts = append(s.Pkts, s.curpkt)
+	}
+}
+
+func (s *Mp2vRecord) Report(root string) {
+	var fname string
+	var w *os.File
+	var err error
+	var pid string = strconv.Itoa(s.Pid)
+	var header string
+
+	fname = filepath.Join(root, pid+".csv")
+	w, err = os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+	header = "Pos, Size, PCR, PTS, DTS, (DTS-PCR)"
+	fmt.Fprintln(w, header)
+	for _, p := range s.Pkts {
+		pcr := p.Pcr / 300
+		dts := p.Dts
+		if dts == 0 {
+			dts = p.Pts
+		}
+		cols := []string{
+			strconv.FormatInt(p.Pos, 10),
+			strconv.FormatInt(p.Size, 10),
+			strconv.FormatInt(pcr, 10),
+			strconv.FormatInt(p.Pts, 10),
+			strconv.FormatInt(dts, 10),
+			strconv.FormatInt(dts-pcr, 10),
+		}
+		fmt.Fprintln(w, strings.Join(cols, ", "))
+	}
+	w.Close()
+
+	fname = filepath.Join(root, pid+"-userdata"+".csv")
+	w, err = os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+	header = "User Data"
+	fmt.Fprintln(w, header)
+	for _, userData := range s.UserData {
+		c, _ := json.Marshal(userData)
+		fmt.Fprintln(w, string(c))
+	}
+	w.Close()
+}
