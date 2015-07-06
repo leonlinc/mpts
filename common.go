@@ -2,6 +2,8 @@ package ts
 
 import (
 	"fmt"
+//	"github.com/google/gopacket/layers"
+	"time"
 )
 
 func ParseTsPkt(data []byte) *TsPkt {
@@ -104,12 +106,28 @@ type BroadcastId struct {
 	MinorChannelNumber int
 }
 
+type EBP struct {
+	Standard           string
+	Fragment           bool // ENC_bound_pt
+	Segment            bool
+	UtcTime            *string
+	UtcTimestamp       *int64
+}
+
 type AdaptFieldPrivData struct {
 	FieldTag byte
 	FieldLen byte
 	*AuInfo
 	*DirecTvTimeCode
 	*BroadcastId
+	*EBP
+}
+
+func NTPTimeToUnixTime(ntpTime int64) time.Time {
+	var sec, usec int64
+	sec = int64((uint64(ntpTime) >> 32) - 0x83AA7E80) // the seconds from Jan 1, 1900 to Jan 1, 1970
+	usec = int64(float64(uint32(ntpTime)) * 1.0e6 / float64(int64(1) << 32))
+	return time.Unix(sec, usec * 1000)
 }
 
 func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
@@ -174,6 +192,78 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 				biInfo.MinorChannelNumber = r.ReadBit(10)
 			}
 			priv.BroadcastId = biInfo
+		} else if priv.FieldTag == 0xA9 {
+			// pre-standard EBP
+			r := &Reader{Data: data[2:]}
+			if priv.FieldLen > 1 {
+				ebp := &EBP{}
+				ebp.Standard = "PreStandard" // Comcast
+				ebp.Fragment = r.ReadBit(1) != 0
+				ebp.Segment = r.ReadBit(1) != 0
+				var sap = r.ReadBit(1)
+				var grouping = r.ReadBit(1)
+				var time = r.ReadBit(1)
+				r.ReadBit(1)
+				r.ReadBit(1)
+				var ext = r.ReadBit(1)
+				if ext == 1 {
+					r.ReadBit(8)
+				}
+				if sap == 1 {
+					r.ReadBit(8)
+				}
+				if grouping == 1 {
+					r.ReadBit(8)
+				}
+				if time == 1{
+					ebp.UtcTimestamp = new(int64)
+					*ebp.UtcTimestamp = r.ReadBit64(64)
+					ebp.UtcTime = new(string)
+					*ebp.UtcTime = NTPTimeToUnixTime(*ebp.UtcTimestamp).String()
+				}
+				priv.EBP = ebp
+			}
+		} else if priv.FieldTag == 0xDF {
+			// cablelab EBP
+			r := &Reader{Data: data[2:]}
+			if priv.FieldLen > 1 {
+				ebp := &EBP{}
+				ebp.Standard = "CableLab" // OpenCable
+				r.ReadBit(32)
+				ebp.Fragment = r.ReadBit(1) != 0
+				ebp.Segment = r.ReadBit(1) != 0
+				var sap = r.ReadBit(1)
+				var grouping = r.ReadBit(1)
+				var time = r.ReadBit(1)
+				r.ReadBit(1)
+				r.ReadBit(1)
+				var ext = r.ReadBit(1)
+				var extPartition = 0
+				if ext == 1 {
+					extPartition = r.ReadBit(1)
+					r.ReadBit(7)
+				}
+				if sap == 1 {
+					r.ReadBit(8)
+				}
+				if grouping == 1 {
+					var extFlag  = 1
+					for extFlag == 1 {
+						extFlag = r.ReadBit(1)
+						r.ReadBit(7)
+					}
+				}
+				if time == 1{
+					ebp.UtcTimestamp = new(int64)
+					*ebp.UtcTimestamp = r.ReadBit64(64)
+					ebp.UtcTime = new(string)
+					*ebp.UtcTime = NTPTimeToUnixTime(*ebp.UtcTimestamp).String()
+				}
+				if extPartition == 1 {
+					r.ReadBit(8)
+				}
+				priv.EBP = ebp
+			}
 		}
 		privList = append(privList, priv)
 		data = data[2+priv.FieldLen:]
