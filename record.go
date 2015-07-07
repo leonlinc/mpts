@@ -153,7 +153,7 @@ func (s *Scte35Record) Report(root string) {
 	}
 }
 
-func CreateRecord(pid int, t string) Record {
+func CreateRecord(pid int, t string, root string) Record {
 	var record Record
 	switch t {
 	case "SCTE-35":
@@ -161,7 +161,7 @@ func CreateRecord(pid int, t string) Record {
 	case "MPEG-4 AVC Video":
 		record = &H264Record{Pid: pid}
 	case "MPEG-2 Video":
-		record = &Mp2vRecord{Pid: pid}
+		record = &Mp2vRecord{Pid: pid, Root: root}
 	default:
 		record = &PesRecord{Pid: pid}
 	}

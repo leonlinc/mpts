@@ -18,6 +18,30 @@ type Mp2vUserData struct {
 	Bar     bool
 }
 
+type Mp2vTimeCode struct {
+	DropFrameFlag int
+	Hours int
+	Minutes int
+	Seconds int
+	Pictures int
+}
+
+type Mp2vHeaders struct {
+	*Mp2vGopHeader
+	*Mp2vPicHeader
+	UserData []*Mp2vUserData
+}
+
+type Mp2vGopHeader struct {
+	Mp2vTimeCode
+	ClosedGop int
+}
+
+type Mp2vPicHeader struct {
+	TemporalReference int
+	PictureCodingType int
+}
+
 func ParseATSC(data []byte) (cc bool, bar bool) {
 	code := data[0]
 	if code == 0x03 {
@@ -51,8 +75,8 @@ func ParseMp2vUserData(data []byte) *Mp2vUserData {
 	return result
 }
 
-func ParseMp2vHeaders(data []byte) []*Mp2vUserData {
-	var result []*Mp2vUserData
+func ParseMp2vHeaders(data []byte) Mp2vHeaders {
+	var result Mp2vHeaders
 	var pos int
 	var startcode = []byte{0, 0, 1}
 	var startlen = len(startcode)
@@ -60,9 +84,14 @@ func ParseMp2vHeaders(data []byte) []*Mp2vUserData {
 		if bytes.Compare(startcode, data[pos:pos+startlen]) == 0 {
 			pos += startlen
 			code := int(data[pos])
+			elem := data[pos+1:]
 			if code == 0xB2 {
-				r := ParseMp2vUserData(data[pos+1:])
-				result = append(result, r)
+				userData := ParseMp2vUserData(elem)
+				result.UserData = append(result.UserData, userData)
+			} else if code == 0x00 {
+				result.Mp2vPicHeader = ParseMp2vPicHeader(elem)
+			} else if code == 0xB8 {
+				result.Mp2vGopHeader = ParseMp2vGopHeader(elem)
 			}
 		}
 		pos += 1
@@ -70,18 +99,68 @@ func ParseMp2vHeaders(data []byte) []*Mp2vUserData {
 	return result
 }
 
+func ParseMp2vPicHeader(data []byte) *Mp2vPicHeader {
+	r := &Reader{Data: data}
+	h := &Mp2vPicHeader{}
+	h.TemporalReference = r.ReadBit(10)
+	h.PictureCodingType = r.ReadBit(3)
+	return h
+}
+
+func ParseMp2vGopHeader(data []byte) *Mp2vGopHeader {
+	r := &Reader{Data: data}
+	h := &Mp2vGopHeader{}
+	h.Mp2vTimeCode.DropFrameFlag = r.ReadBit(1)
+	h.Mp2vTimeCode.Hours = r.ReadBit(5)
+	h.Mp2vTimeCode.Minutes = r.ReadBit(6)
+	r.ReadBit(1)
+	h.Mp2vTimeCode.Seconds = r.ReadBit(6)
+	h.Mp2vTimeCode.Pictures = r.ReadBit(6)
+	h.ClosedGop = r.ReadBit(1)
+	return h
+}
+
 type Mp2vRecord struct {
 	BaseRecord
+	Root string
 	Pid      int
 	curpkt   *PesPkt
 	Pkts     []*PesPkt
 	UserData []*Mp2vUserData
+	IFrameLog *os.File
+}
+
+type IFrameInfo struct {
+	Pos int64
+	Key bool
+}
+
+func (r *Mp2vRecord) LogIFrame(i IFrameInfo) {
+	if r.IFrameLog == nil {
+		var pid string = strconv.Itoa(r.Pid)
+		var err error
+		fname := filepath.Join(r.Root, pid+"-iframe"+".csv")
+		r.IFrameLog, err = os.Create(fname)
+		if err != nil {
+			panic(err)
+		}
+	}
+	fmt.Fprintln(r.IFrameLog, i)
 }
 
 func (s *Mp2vRecord) Process(pkt *TsPkt) {
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
-			userData := ParseMp2vHeaders(s.curpkt.Data)
+			headers := ParseMp2vHeaders(s.curpkt.Data)
+			if headers.Mp2vPicHeader.PictureCodingType == 1 {
+				i := IFrameInfo{}
+				i.Pos = s.curpkt.Pos
+				if headers.Mp2vGopHeader != nil {
+					i.Key = headers.Mp2vGopHeader.ClosedGop == 1
+				}
+				s.LogIFrame(i)
+			}
+			userData := headers.UserData
 			for _, u := range userData {
 				u.Pos = s.curpkt.Pos
 			}
