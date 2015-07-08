@@ -159,7 +159,7 @@ func CreateRecord(pid int, t string, root string) Record {
 	case "SCTE-35":
 		record = &Scte35Record{Pid: pid}
 	case "MPEG-4 AVC Video":
-		record = &H264Record{Pid: pid}
+		record = &H264Record{Pid: pid, Root: root}
 	case "MPEG-2 Video":
 		record = &Mp2vRecord{Pid: pid, Root: root}
 	default:

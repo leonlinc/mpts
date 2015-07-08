@@ -20,10 +20,10 @@ type Mp2vUserData struct {
 
 type Mp2vTimeCode struct {
 	DropFrameFlag int
-	Hours int
-	Minutes int
-	Seconds int
-	Pictures int
+	Hours         int
+	Minutes       int
+	Seconds       int
+	Pictures      int
 }
 
 type Mp2vHeaders struct {
@@ -122,11 +122,11 @@ func ParseMp2vGopHeader(data []byte) *Mp2vGopHeader {
 
 type Mp2vRecord struct {
 	BaseRecord
-	Root string
-	Pid      int
-	curpkt   *PesPkt
-	Pkts     []*PesPkt
-	UserData []*Mp2vUserData
+	Root      string
+	Pid       int
+	curpkt    *PesPkt
+	Pkts      []*PesPkt
+	UserData  []*Mp2vUserData
 	IFrameLog *os.File
 }
 

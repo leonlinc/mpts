@@ -55,16 +55,39 @@ func ParseNalUnits(data []byte) []string {
 
 type H264Record struct {
 	BaseRecord
-	Pid    int
-	curpkt *PesPkt
-	Pkts   []*PesPkt
-	Nals   [][]string
+	Root      string
+	Pid       int
+	curpkt    *PesPkt
+	Pkts      []*PesPkt
+	Nals      [][]string
+	IFrameLog *os.File
+}
+
+func (r *H264Record) LogIFrame(i IFrameInfo) {
+	if r.IFrameLog == nil {
+		var pid string = strconv.Itoa(r.Pid)
+		var err error
+		fname := filepath.Join(r.Root, pid+"-iframe"+".csv")
+		r.IFrameLog, err = os.Create(fname)
+		if err != nil {
+			panic(err)
+		}
+	}
+	fmt.Fprintln(r.IFrameLog, i)
 }
 
 func (s *H264Record) Process(pkt *TsPkt) {
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
 			nals := ParseNalUnits(s.curpkt.Data)
+			for _, nal := range nals {
+				if nal == "slice_idr" {
+					info := IFrameInfo{}
+					info.Pos = s.curpkt.Pos
+					info.Key = true
+					s.LogIFrame(info)
+				}
+			}
 			s.Nals = append(s.Nals, nals)
 			s.Pkts = append(s.Pkts, s.curpkt)
 		}
