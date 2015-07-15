@@ -1,7 +1,10 @@
 package ts
 
 import (
-	_ "fmt"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
 )
 
 type SpliceInfoSection struct {
@@ -305,4 +308,64 @@ func (segment SegmentDescriptor) GetSpliceDuration() int64 {
 		}
 	}
 	return -1
+}
+
+type Scte35Record struct {
+	BaseRecord
+	CurByte  int64
+	CurTime  int64
+	CurData  []byte
+	BytePos  []int64
+	PcrTime  []int64
+	Sections []*SpliceInfoSection
+}
+
+func (s *Scte35Record) Process(pkt *TsPkt) {
+	if pkt.PUSI == 1 {
+		if s.CurData != nil {
+			section := ParseSpliceInfoSection(s.CurData)
+			s.BytePos = append(s.BytePos, s.CurByte)
+			s.PcrTime = append(s.PcrTime, s.CurTime)
+			s.Sections = append(s.Sections, section)
+		}
+		s.CurByte = pkt.Pos
+		s.CurTime = s.BaseRecord.PcrTime
+		s.CurData = pkt.Data
+	} else {
+		s.CurData = append(s.CurData, pkt.Data...)
+	}
+}
+
+func (s *Scte35Record) Flush() {
+	if s.CurData != nil {
+		section := ParseSpliceInfoSection(s.CurData)
+		s.BytePos = append(s.BytePos, s.CurByte)
+		s.PcrTime = append(s.PcrTime, s.CurTime)
+		s.Sections = append(s.Sections, section)
+	}
+}
+
+func (s *Scte35Record) Report(root string) {
+	fname := filepath.Join(root, strconv.Itoa(s.Pid)+".csv")
+	w, err := os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+	defer w.Close()
+
+	fmt.Fprintln(w, "pos, pcr, type, pts_time, pts_adjust, duration")
+	if s.Sections != nil {
+		for i, section := range s.Sections {
+			splice_type := section.GetSpliceType()
+			pts, adj := section.GetSpliceTime()
+			duration := section.GetSpliceDuration()
+			fmt.Fprintf(w, "%v, %v, %v, %v, %v, %v\n",
+				s.BytePos[i],
+				s.PcrTime[i]/300,
+				splice_type,
+				pts,
+				adj,
+				duration)
+		}
+	}
 }

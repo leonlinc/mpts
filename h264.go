@@ -61,6 +61,7 @@ type H264Record struct {
 }
 
 func (s *H264Record) Process(pkt *TsPkt) {
+	s.LogAdaptFieldPrivData(pkt)
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
 			nals := ParseNalUnits(s.curpkt.Data)

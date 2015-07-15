@@ -110,7 +110,7 @@ type EBP struct {
 	Fragment     bool // ENC_bound_pt
 	Segment      bool
 	UtcTime      *string
-	UtcTimestamp *int64
+	UtcTimestamp *uint64
 }
 
 type AdaptFieldPrivData struct {
@@ -122,9 +122,9 @@ type AdaptFieldPrivData struct {
 	*EBP
 }
 
-func NTPTimeToUnixTime(ntpTime int64) time.Time {
+func NTPTimeToUnixTime(ntpTime uint64) time.Time {
 	var sec, usec int64
-	sec = int64((uint64(ntpTime) >> 32) - 0x83AA7E80) // the seconds from Jan 1, 1900 to Jan 1, 1970
+	sec = int64((ntpTime >> 32) - 0x83AA7E80) // the seconds from Jan 1, 1900 to Jan 1, 1970
 	usec = int64(float64(uint32(ntpTime)) * 1.0e6 / float64(int64(1)<<32))
 	return time.Unix(sec, usec*1000)
 }
@@ -215,8 +215,8 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 					r.ReadBit(8)
 				}
 				if time == 1 {
-					ebp.UtcTimestamp = new(int64)
-					*ebp.UtcTimestamp = r.ReadBit64(64)
+					ebp.UtcTimestamp = new(uint64)
+					*ebp.UtcTimestamp = uint64(r.ReadBit64(64))
 					ebp.UtcTime = new(string)
 					*ebp.UtcTime = NTPTimeToUnixTime(*ebp.UtcTimestamp).String()
 				}
@@ -253,8 +253,8 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 					}
 				}
 				if time == 1 {
-					ebp.UtcTimestamp = new(int64)
-					*ebp.UtcTimestamp = r.ReadBit64(64)
+					ebp.UtcTimestamp = new(uint64)
+					*ebp.UtcTimestamp = uint64(r.ReadBit64(64))
 					ebp.UtcTime = new(string)
 					*ebp.UtcTime = NTPTimeToUnixTime(*ebp.UtcTimestamp).String()
 				}

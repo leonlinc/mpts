@@ -128,6 +128,7 @@ type Mp2vRecord struct {
 }
 
 func (s *Mp2vRecord) Process(pkt *TsPkt) {
+	s.LogAdaptFieldPrivData(pkt)
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
 			headers := ParseMp2vHeaders(s.curpkt.Data)
