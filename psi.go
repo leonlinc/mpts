@@ -356,52 +356,7 @@ func (p *PsiParser) BufferData(pkt *TsPkt, buf *[]byte) bool {
 	return false
 }
 
-func (p *PsiParser) Report(root string) {
-	fname := filepath.Join(root, "psi.log")
-	w, err := os.Create(fname)
-	if err != nil {
-		panic(err)
-	}
-	defer w.Close()
-
-	printDescriptor := func(stream Stream) {
-		if len(stream.Descriptors) == 0 {
-			return
-		}
-		fmt.Fprintf(w, "\t\tdescriptors:\n")
-		for _, descriptor := range stream.Descriptors {
-			fmt.Fprintf(w, "\t\t\t")
-			fmt.Fprintf(w, "(%v) %v", descriptor.Tag, descriptor.TagName)
-			switch descriptor.Tag {
-			case 0x05:
-				reg := ParseRegDescriptor(descriptor.data)
-				fmt.Fprintf(w, ": %v", reg.format_identifier)
-			case 0x0A:
-				lang := ParseLangDescriptor(descriptor.data)
-				fmt.Fprintf(w, ": %v", lang.ISO_639_language_code)
-			}
-			fmt.Fprintf(w, "\n")
-		}
-	}
-
-	for _, program := range p.Pat.programs {
-		pmt := p.Pmts[program.PmtPid]
-		fmt.Fprintf(w, "[program] num: %v, pmt: %v, pcr: %v\n",
-			program.Number, program.PmtPid, pmt.pcr_pid)
-		for _, stream := range pmt.streams {
-			fmt.Fprintf(w, "\t")
-			fmt.Fprintf(w, "[stream] pid: %v, type: %v\n",
-				stream.Pid, GetStreamType(stream))
-			printDescriptor(stream)
-		}
-	}
-
-	jsonFileName := filepath.Join(root, "psi.json")
-	jsonFile, err := os.Create(jsonFileName)
-	if err != nil {
-		panic(err)
-	}
-	defer jsonFile.Close()
+func (p *PsiParser) Finish() {
 	p.Info.Programs = make(map[string]Program)
 	for num, program := range p.Pat.programs {
 		program.Streams = make(map[string]Stream)
@@ -411,6 +366,15 @@ func (p *PsiParser) Report(root string) {
 			program.Streams[strconv.Itoa(pid)] = stream
 		}
 	}
+}
+
+func (p *PsiParser) Report(root string) {
 	buf, _ := json.MarshalIndent(p.Info, "", "  ")
+	jsonFileName := filepath.Join(root, "psi.json")
+	jsonFile, err := os.Create(jsonFileName)
+	if err != nil {
+		panic(err)
+	}
+	defer jsonFile.Close()
 	fmt.Fprintln(jsonFile, string(buf))
 }
