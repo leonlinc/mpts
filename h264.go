@@ -72,8 +72,15 @@ func (r *H264Record) LogIFrame(i IFrameInfo) {
 		if err != nil {
 			panic(err)
 		}
+		header := "Pos, PTS, Key"
+		fmt.Fprintln(r.IFrameLog, header)
 	}
-	fmt.Fprintln(r.IFrameLog, i)
+	cols := []string{
+		strconv.FormatInt(i.Pos, 10),
+		strconv.FormatInt(i.Pts, 10),
+		strconv.FormatBool(i.Key),
+	}
+	fmt.Fprintln(r.IFrameLog, strings.Join(cols, ", "))
 }
 
 func (s *H264Record) Process(pkt *TsPkt) {
@@ -84,6 +91,7 @@ func (s *H264Record) Process(pkt *TsPkt) {
 				if nal == "slice_idr" {
 					info := IFrameInfo{}
 					info.Pos = s.curpkt.Pos
+					info.Pts = s.curpkt.Pts
 					info.Key = true
 					s.LogIFrame(info)
 				}

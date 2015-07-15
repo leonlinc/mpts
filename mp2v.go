@@ -132,6 +132,7 @@ type Mp2vRecord struct {
 
 type IFrameInfo struct {
 	Pos int64
+	Pts int64
 	Key bool
 }
 
@@ -144,8 +145,15 @@ func (r *Mp2vRecord) LogIFrame(i IFrameInfo) {
 		if err != nil {
 			panic(err)
 		}
+		header := "Pos, PTS, Key"
+		fmt.Fprintln(r.IFrameLog, header)
 	}
-	fmt.Fprintln(r.IFrameLog, i)
+	cols := []string{
+		strconv.FormatInt(i.Pos, 10),
+		strconv.FormatInt(i.Pts, 10),
+		strconv.FormatBool(i.Key),
+	}
+	fmt.Fprintln(r.IFrameLog, strings.Join(cols, ", "))
 }
 
 func (s *Mp2vRecord) Process(pkt *TsPkt) {
@@ -155,6 +163,7 @@ func (s *Mp2vRecord) Process(pkt *TsPkt) {
 			if headers.Mp2vPicHeader.PictureCodingType == 1 {
 				i := IFrameInfo{}
 				i.Pos = s.curpkt.Pos
+				i.Pts = s.curpkt.Pts
 				if headers.Mp2vGopHeader != nil {
 					i.Key = headers.Mp2vGopHeader.ClosedGop == 1
 				}
