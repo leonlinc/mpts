@@ -332,3 +332,9 @@ func (p *PesPkt) Read(pkt *TsPkt) (n int) {
 
 	return
 }
+
+type IFrameInfo struct {
+	Pos int64
+	Pts int64
+	Key bool
+}

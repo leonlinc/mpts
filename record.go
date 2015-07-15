@@ -17,8 +17,11 @@ type Record interface {
 }
 
 type BaseRecord struct {
-	PcrTime int64
-	PcrPos  int64
+	Root      string
+	Pid       int
+	PcrTime   int64
+	PcrPos    int64
+	IFrameLog *os.File
 }
 
 func (b *BaseRecord) NotifyTime(pcr int64, pos int64) {
@@ -28,7 +31,6 @@ func (b *BaseRecord) NotifyTime(pcr int64, pos int64) {
 
 type PesRecord struct {
 	BaseRecord
-	Pid    int
 	curpkt *PesPkt
 	Pkts   []*PesPkt
 }
@@ -94,7 +96,6 @@ func (s *PesRecord) Report(root string) {
 
 type Scte35Record struct {
 	BaseRecord
-	Pid      int
 	CurByte  int64
 	CurTime  int64
 	CurData  []byte
@@ -157,13 +158,33 @@ func CreateRecord(pid int, t string, root string) Record {
 	var record Record
 	switch t {
 	case "SCTE-35":
-		record = &Scte35Record{Pid: pid}
+		record = &Scte35Record{BaseRecord: BaseRecord{Pid: pid}}
 	case "MPEG-4 AVC Video":
-		record = &H264Record{Pid: pid, Root: root}
+		record = &H264Record{BaseRecord: BaseRecord{Pid: pid, Root: root}}
 	case "MPEG-2 Video":
-		record = &Mp2vRecord{Pid: pid, Root: root}
+		record = &Mp2vRecord{BaseRecord: BaseRecord{Pid: pid, Root: root}}
 	default:
-		record = &PesRecord{Pid: pid}
+		record = &PesRecord{BaseRecord: BaseRecord{Pid: pid}}
 	}
 	return record
+}
+
+func (r *BaseRecord) LogIFrame(i IFrameInfo) {
+	if r.IFrameLog == nil {
+		var pid string = strconv.Itoa(r.Pid)
+		var err error
+		fname := filepath.Join(r.Root, pid+"-iframe"+".csv")
+		r.IFrameLog, err = os.Create(fname)
+		if err != nil {
+			panic(err)
+		}
+		header := "Pos, PTS, Key"
+		fmt.Fprintln(r.IFrameLog, header)
+	}
+	cols := []string{
+		strconv.FormatInt(i.Pos, 10),
+		strconv.FormatInt(i.Pts, 10),
+		strconv.FormatBool(i.Key),
+	}
+	fmt.Fprintln(r.IFrameLog, strings.Join(cols, ", "))
 }

@@ -19,7 +19,7 @@ func main() {
 			Usage: "output file",
 		},
 	}
-	app.Action = func (c *cli.Context) {
+	app.Action = func(c *cli.Context) {
 		inputFileName := c.Args().Get(0)
 		if inputFileName == "" {
 			cli.ShowAppHelp(c)

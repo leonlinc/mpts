@@ -122,38 +122,9 @@ func ParseMp2vGopHeader(data []byte) *Mp2vGopHeader {
 
 type Mp2vRecord struct {
 	BaseRecord
-	Root      string
-	Pid       int
-	curpkt    *PesPkt
-	Pkts      []*PesPkt
-	UserData  []*Mp2vUserData
-	IFrameLog *os.File
-}
-
-type IFrameInfo struct {
-	Pos int64
-	Pts int64
-	Key bool
-}
-
-func (r *Mp2vRecord) LogIFrame(i IFrameInfo) {
-	if r.IFrameLog == nil {
-		var pid string = strconv.Itoa(r.Pid)
-		var err error
-		fname := filepath.Join(r.Root, pid+"-iframe"+".csv")
-		r.IFrameLog, err = os.Create(fname)
-		if err != nil {
-			panic(err)
-		}
-		header := "Pos, PTS, Key"
-		fmt.Fprintln(r.IFrameLog, header)
-	}
-	cols := []string{
-		strconv.FormatInt(i.Pos, 10),
-		strconv.FormatInt(i.Pts, 10),
-		strconv.FormatBool(i.Key),
-	}
-	fmt.Fprintln(r.IFrameLog, strings.Join(cols, ", "))
+	curpkt   *PesPkt
+	Pkts     []*PesPkt
+	UserData []*Mp2vUserData
 }
 
 func (s *Mp2vRecord) Process(pkt *TsPkt) {
