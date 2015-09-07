@@ -13,8 +13,8 @@ type PcrInfo struct {
 	Pcr int64
 }
 
-func CheckPcrInterval(root string, pcrPid int, pcrList []PcrInfo) {
-	fname := filepath.Join(root, "pcr-"+strconv.Itoa(pcrPid)+".csv")
+func CheckPcrInterval(root string, prefix string, pcrPid int, pcrList []PcrInfo) {
+	fname := filepath.Join(root, prefix+"pcr-"+strconv.Itoa(pcrPid)+".csv")
 	w, err := os.Create(fname)
 	if err != nil {
 		panic(err)
