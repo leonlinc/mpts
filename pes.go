@@ -16,6 +16,7 @@ type PesRecord struct {
 }
 
 func (s *PesRecord) Process(pkt *TsPkt) {
+	s.LogAdaptFieldPrivData(pkt)
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
 			s.Pkts = append(s.Pkts, s.curpkt)
