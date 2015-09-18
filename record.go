@@ -86,7 +86,7 @@ func CreateRecord(pid int, t string, root string) Record {
 	case "MPEG-2 Video":
 		record = &Mp2vRecord{BaseRecord: BaseRecord{Pid: pid, Root: root}}
 	default:
-		record = &PesRecord{BaseRecord: BaseRecord{Pid: pid}}
+		record = &PesRecord{BaseRecord: BaseRecord{Pid: pid, Root: root}}
 	}
 	return record
 }
