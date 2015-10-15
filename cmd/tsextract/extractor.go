@@ -20,6 +20,9 @@ func extract(inputFileName, outputFileName string) {
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
-		outputFile.Write(packet.ApplicationLayer().Payload())
+		appLayer := packet.ApplicationLayer()
+		if appLayer != nil {
+			outputFile.Write(appLayer.Payload())
+		}
 	}
 }
