@@ -194,7 +194,7 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 		} else if priv.FieldTag == 0xA9 {
 			// pre-standard EBP
 			r := &Reader{Data: data[2:]}
-			if priv.FieldLen > 1 {
+			if priv.FieldLen >= 1 {
 				ebp := &EBP{}
 				ebp.Standard = "PreStandard" // Comcast
 				ebp.Fragment = r.ReadBit(1) != 0
@@ -225,7 +225,7 @@ func ParseAdaptFieldPrivData(data []byte) []AdaptFieldPrivData {
 		} else if priv.FieldTag == 0xDF {
 			// cablelab EBP
 			r := &Reader{Data: data[2:]}
-			if priv.FieldLen > 1 {
+			if priv.FieldLen >= 1 {
 				ebp := &EBP{}
 				ebp.Standard = "CableLab" // OpenCable
 				r.ReadBit(32)
