@@ -1,9 +1,10 @@
 package main
 
 import (
+	"os"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"os"
 )
 
 func extract(inputFileName, outputFileName string) {
@@ -22,7 +23,12 @@ func extract(inputFileName, outputFileName string) {
 	for packet := range packetSource.Packets() {
 		appLayer := packet.ApplicationLayer()
 		if appLayer != nil {
-			outputFile.Write(appLayer.Payload())
+			payload := appLayer.Payload()
+			if len(payload) == 1360 {
+				outputFile.Write(payload[44:])
+			} else {
+				outputFile.Write(payload)
+			}
 		}
 	}
 }
