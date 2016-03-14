@@ -1,35 +1,50 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
+	"fmt"
+	"log"
 	"os"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
+)
+
+const (
+	UDPSize  = 1316
+	HRTPSize = 1360
 )
 
 func main() {
-	app := cli.NewApp()
-	app.Name = "tsextract"
-	app.Usage = "Extract ts from pcap"
-	app.Flags = []cli.Flag{
-		cli.BoolFlag{
-			Name:  "rtp",
-			Usage: "decode as rtp",
-		},
-		cli.StringFlag{
-			Name:  "output",
-			Usage: "output file",
-		},
+	if len(os.Args) != 2 {
+		fmt.Printf("Usage: %s pcap\n", os.Args[0])
+		os.Exit(0)
 	}
-	app.Action = func(c *cli.Context) {
-		inputFileName := c.Args().Get(0)
-		if inputFileName == "" {
-			cli.ShowAppHelp(c)
-			return
-		}
-		outputFileName := c.String("output")
-		if outputFileName == "" {
-			outputFileName = "out.ts"
-		}
-		extract(inputFileName, outputFileName)
+
+	input, output := os.Args[1], "out.ts"
+
+	handle, err := pcap.OpenOffline(input)
+	if err != nil {
+		log.Fatal(err)
 	}
-	app.Run(os.Args)
+	defer handle.Close()
+
+	f, err := os.Create(output)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	source := gopacket.NewPacketSource(handle, handle.LinkType())
+	for packet := range source.Packets() {
+		appLayer := packet.ApplicationLayer()
+		if appLayer != nil {
+			payload := appLayer.Payload()
+			if len(payload) == UDPSize {
+				f.Write(payload)
+			} else if len(payload) == HRTPSize {
+				offset = HRTPSize - UDPSize
+				f.Write(payload[offset:HRTPSize])
+			}
+		}
+	}
 }
