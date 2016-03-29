@@ -42,7 +42,7 @@ func main() {
 			if len(payload) == UDPSize {
 				f.Write(payload)
 			} else if len(payload) == HRTPSize {
-				offset = HRTPSize - UDPSize
+				offset := HRTPSize - UDPSize
 				f.Write(payload[offset:HRTPSize])
 			}
 		}
