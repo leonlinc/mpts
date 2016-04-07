@@ -50,11 +50,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		if n == UDPSize {
-			f.Write(b[:UDPSize])
-		} else if n == HRTPSize {
-			offset := HRTPSize - UDPSize
-			f.Write(b[offset:HRTPSize])
-		}
+		offset := n - UDPSize
+		f.Write(b[offset:n])
 	}
 }
