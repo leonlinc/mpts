@@ -25,10 +25,16 @@ func parse(fname string, outdir string, psiOnly bool) {
 
 	pkts = ts.ParseFile(fname)
 	psiParser := ts.NewPsiParser()
+	psiParseDone := false
 	for pkt := range pkts {
 		if ok := psiParser.Parse(pkt); ok {
+			psiParseDone = true
 			break
 		}
+	}
+	// TODO: non existent PMT will not trigger ParseDone automatically
+	if psiParseDone == false {
+		psiParser.ParseDone()
 	}
 	psiParser.Finish()
 	psiParser.Report(outdir)
