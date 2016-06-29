@@ -362,8 +362,10 @@ func (p *PsiParser) Finish() {
 		program.Streams = make(map[string]Stream)
 		p.Info.Programs[strconv.Itoa(num)] = program
 		pmt := p.Pmts[program.PmtPid]
-		for pid, stream := range pmt.streams {
-			program.Streams[strconv.Itoa(pid)] = stream
+		if pmt != nil {
+			for pid, stream := range pmt.streams {
+				program.Streams[strconv.Itoa(pid)] = stream
+			}
 		}
 	}
 }
