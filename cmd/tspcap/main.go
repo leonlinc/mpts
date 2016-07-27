@@ -21,7 +21,7 @@ func handlePayload(b []byte, t int64) {
 		if b[offset] != 0x47 {
 			fmt.Println("Sync Byte Error")
 		}
-		pkt := ts.ParseTsPkt(b)
+		pkt := ts.ParseTsPkt(b[offset:])
 		if pcr, ok := pkt.PCR(); ok {
 			fmt.Println(t, pcr/27000)
 		}
