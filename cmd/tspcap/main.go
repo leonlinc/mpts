@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
@@ -8,11 +9,6 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/leonlinc/ts"
-)
-
-const (
-	UDPSize  = 1316
-	HRTPSize = 1360
 )
 
 func handlePayload(b []byte, t int64) {
@@ -34,7 +30,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	input, output := os.Args[1], "out.ts"
+	input, output := os.Args[1], os.Args[1]+".ts"
 
 	handle, err := pcap.OpenOffline(input)
 	if err != nil {
@@ -50,18 +46,22 @@ func main() {
 
 	source := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range source.Packets() {
-		currTime := packet.Metadata().CaptureInfo.Timestamp.UnixNano() / 1000000
 		appLayer := packet.ApplicationLayer()
 		if appLayer != nil {
 			payload := appLayer.Payload()
-			if len(payload) == UDPSize {
-				handlePayload(payload, currTime)
-				f.Write(payload)
-			} else if len(payload) == HRTPSize {
-				offset := HRTPSize - UDPSize
-				handlePayload(payload[offset:HRTPSize], currTime)
-				f.Write(payload[offset:HRTPSize])
+			if len(payload) != 1316 {
+				// RTP header minimum size 12 byte
+				offset := 12
+				// Ignore CSRC for now
+				offset += 0
+				// Extension header
+				offset += 4 + 4*int(binary.BigEndian.Uint16(payload[offset+2:]))
+				payload = payload[offset:]
 			}
+			// For debugging real-time PCR jitter
+			// currTime := packet.Metadata().CaptureInfo.Timestamp.UnixNano() / 1000000
+			// handlePayload(payload, currTime)
+			f.Write(payload)
 		}
 	}
 }
