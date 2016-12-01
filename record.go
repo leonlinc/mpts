@@ -1,4 +1,4 @@
-package ts
+package mpts
 
 import (
 	"encoding/json"
@@ -22,11 +22,11 @@ type Record interface {
 }
 
 type BaseRecord struct {
-	Root      string
-	Pid       int
-	PcrTime   int64
-	PcrPos    int64
-	IFrameLog *os.File
+	Root                  string
+	Pid                   int
+	PcrTime               int64
+	PcrPos                int64
+	IFrameLog             *os.File
 	AdaptFieldPrivDataLog *os.File
 }
 
@@ -90,4 +90,3 @@ func CreateRecord(pid int, t string, root string) Record {
 	}
 	return record
 }
-

@@ -9,22 +9,22 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leonlinc/ts"
+	"github.com/leonlinc/mpts"
 )
 
 var Root string
 
 func parse(fname string, outdir string, psiOnly bool) {
-	var pkts chan *ts.TsPkt
+	var pkts chan *mpts.TsPkt
 
 	Root = outdir
 
 	// PCR PID -> PCR values
-	var progPcrList = make(map[int][]ts.PcrInfo)
-	var extraPcrList = make(map[int][]ts.PcrInfo)
+	var progPcrList = make(map[int][]mpts.PcrInfo)
+	var extraPcrList = make(map[int][]mpts.PcrInfo)
 
-	pkts = ts.ParseFile(fname)
-	psiParser := ts.NewPsiParser()
+	pkts = mpts.ParseFile(fname)
+	psiParser := mpts.NewPsiParser()
 	psiParseDone := false
 	for pkt := range pkts {
 		if ok := psiParser.Parse(pkt); ok {
@@ -48,33 +48,33 @@ func parse(fname string, outdir string, psiOnly bool) {
 	pcrs := psiParser.GetPcrs()
 	for pcrPid, _ := range pcrs {
 		// Default PCR list length: 1500 = 25Hz * 60s
-		progPcrList[pcrPid] = make([]ts.PcrInfo, 0)
+		progPcrList[pcrPid] = make([]mpts.PcrInfo, 0)
 	}
 
-	records := make(map[int]ts.Record)
+	records := make(map[int]mpts.Record)
 	for pid, s := range streams {
-		records[pid] = ts.CreateRecord(pid, ts.GetStreamType(s), outdir)
+		records[pid] = mpts.CreateRecord(pid, mpts.GetStreamType(s), outdir)
 	}
 
-	pkts = ts.ParseFile(fname)
+	pkts = mpts.ParseFile(fname)
 	for pkt := range pkts {
 		if pcr, ok := pkt.PCR(); ok {
 			if pids, ok := pcrs[pkt.Pid]; ok {
 				// Save the PCR value
 				progPcrList[pkt.Pid] = append(
 					progPcrList[pkt.Pid],
-					ts.PcrInfo{pkt.Pos, pcr})
+					mpts.PcrInfo{pkt.Pos, pcr})
 				for _, pid := range pids {
 					records[pid].NotifyTime(pcr, pkt.Pos)
 				}
 			} else {
 				// extra PCR
 				if _, ok := extraPcrList[pkt.Pid]; !ok {
-					extraPcrList[pkt.Pid] = make([]ts.PcrInfo, 0)
+					extraPcrList[pkt.Pid] = make([]mpts.PcrInfo, 0)
 				}
 				extraPcrList[pkt.Pid] = append(
 					extraPcrList[pkt.Pid],
-					ts.PcrInfo{pkt.Pos, pcr})
+					mpts.PcrInfo{pkt.Pos, pcr})
 			}
 		}
 
@@ -84,11 +84,11 @@ func parse(fname string, outdir string, psiOnly bool) {
 	}
 
 	for pcrPid, pcrList := range progPcrList {
-		ts.CheckPcrInterval(outdir, "", pcrPid, pcrList)
+		mpts.CheckPcrInterval(outdir, "", pcrPid, pcrList)
 	}
 
 	for pcrPid, pcrList := range extraPcrList {
-		ts.CheckPcrInterval(outdir, "extra", pcrPid, pcrList)
+		mpts.CheckPcrInterval(outdir, "extra", pcrPid, pcrList)
 	}
 
 	for _, record := range records {
@@ -100,8 +100,8 @@ func parse(fname string, outdir string, psiOnly bool) {
 }
 
 func extract(fname string, outdir string, pid int) {
-	var pkts chan *ts.TsPkt
-	pkts = ts.ParseFile(fname)
+	var pkts chan *mpts.TsPkt
+	pkts = mpts.ParseFile(fname)
 
 	of := filepath.Join(outdir, strconv.Itoa(pid)+".es")
 	f, err := os.Create(of)
@@ -117,7 +117,7 @@ func extract(fname string, outdir string, pid int) {
 	}
 }
 
-func verify(psiInfo ts.Info) {
+func verify(psiInfo mpts.Info) {
 	result := map[string]interface{}{}
 	for _, prog := range psiInfo.Programs {
 		result["splice-frame-accuracy"] = verifySpliceFrameAccuracy(prog)
@@ -125,7 +125,7 @@ func verify(psiInfo ts.Info) {
 	logJson("verified", result)
 }
 
-func verifySpliceFrameAccuracy(prog ts.Program) map[string]interface{} {
+func verifySpliceFrameAccuracy(prog mpts.Program) map[string]interface{} {
 	sctePids, videoPid := []string{}, ""
 	for pid, strm := range prog.Streams {
 		switch strm.StreamType {

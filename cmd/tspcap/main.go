@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"github.com/leonlinc/ts"
+	"github.com/leonlinc/mpts"
 )
 
 func handlePayload(b []byte, t int64) {
@@ -17,7 +17,7 @@ func handlePayload(b []byte, t int64) {
 		if b[offset] != 0x47 {
 			fmt.Println("Sync Byte Error")
 		}
-		pkt := ts.ParseTsPkt(b[offset:])
+		pkt := mpts.ParseTsPkt(b[offset:])
 		if pcr, ok := pkt.PCR(); ok {
 			fmt.Println(t, pcr/27000)
 		}
