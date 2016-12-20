@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -8,26 +9,36 @@ import (
 )
 
 const (
-	MaxSize  = 1500
-	UDPSize  = 1316
-	HRTPSize = 1360
+	MaxSize = 1500
+	UDPSize = 1316
 )
 
+var dumpFlag = flag.Bool("dump", false, "")
+var outFile = flag.String("out", "out.ts", "")
+
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Printf("Usage: %s interface addr port\n", os.Args[0])
-		os.Exit(0)
+	flag.Parse()
+
+	if *dumpFlag {
+		args := flag.Args()
+		if len(args) != 3 {
+			fmt.Printf("Usage: mtr -dump interface address port\n")
+			os.Exit(1)
+		}
+
+		dump(args[0], args[1], args[2], *outFile)
+	} else {
+
 	}
+}
 
-	ifiName, addr := os.Args[1], os.Args[2]+":"+os.Args[3]
-	fmt.Printf("Dumping %s@%s\n", addr, ifiName)
-
+func dump(ifiName, addr, port, output string) {
 	ifi, err := net.InterfaceByName(ifiName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	udpAddr, err := net.ResolveUDPAddr("udp", addr+":"+port)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +49,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	f, err := os.Create("out.ts")
+	f, err := os.Create(output)
 	if err != nil {
 		log.Fatal(err)
 	}
