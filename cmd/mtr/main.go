@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -43,6 +44,7 @@ func main() {
 			fmt.Printf("Usage: mtr [options] arguments\n")
 			os.Exit(1)
 		}
+		parseFile(args[0])
 	}
 }
 
@@ -148,4 +150,10 @@ Loop:
 			}
 		}
 	}
+}
+
+func parseFile(input string) {
+	outdir := filepath.Base(input) + ".log"
+	os.Mkdir(outdir, os.ModeDir|0755)
+	parse(input, outdir, false)
 }
