@@ -300,8 +300,8 @@ type PesPkt struct {
 	Data     []byte
 }
 
-func (p *PesPkt) Read(pkt *TsPkt) (n int) {
-	r := &Reader{Data: pkt.Data}
+func (p *PesPkt) Read(data []byte) (n int) {
+	r := &Reader{Data: data}
 
 	r.SkipByte(3)
 	streamId := r.ReadBit(8)

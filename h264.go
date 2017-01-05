@@ -3,6 +3,7 @@ package mpts
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,7 +59,12 @@ type H264Record struct {
 	curpkt *PesPkt
 	Pkts   []*PesPkt
 	Nals   [][]string
+	// Workaround PES parsing error
+	WorkaroundPESFlag bool
+	WorkaroundPES     []byte
 }
+
+const minPesHeaderLen = 19
 
 func (s *H264Record) Process(pkt *TsPkt) {
 	s.LogAdaptFieldPrivData(pkt)
@@ -80,12 +86,37 @@ func (s *H264Record) Process(pkt *TsPkt) {
 		s.curpkt = &PesPkt{}
 		s.curpkt.Pos = pkt.Pos
 		s.curpkt.Pcr = s.BaseRecord.PcrTime
-		var startcode = []byte{0, 0, 1}
-		if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
-			hlen := s.curpkt.Read(pkt)
-			pkt.Data = pkt.Data[hlen:]
+
+		if len(pkt.Data) >= minPesHeaderLen {
+			var startcode = []byte{0, 0, 1}
+			if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
+				hlen := s.curpkt.Read(pkt.Data)
+				pkt.Data = pkt.Data[hlen:]
+			} else {
+				log.Fatal("PES start code error")
+			}
+		} else {
+			log.Println("Workaround for pkt:", pkt.Pos, "size:", len(pkt.Data))
+			s.WorkaroundPESFlag = true
+			s.WorkaroundPES = nil
 		}
 	}
+
+	if s.WorkaroundPESFlag {
+		s.WorkaroundPES = append(s.WorkaroundPES, pkt.Data...)
+		pkt.Data = nil
+		if len(s.WorkaroundPES) >= minPesHeaderLen {
+			var startcode = []byte{0, 0, 1}
+			if 0 == bytes.Compare(startcode, s.WorkaroundPES[0:3]) {
+				hlen := s.curpkt.Read(s.WorkaroundPES)
+				pkt.Data = s.WorkaroundPES[hlen:]
+				s.WorkaroundPESFlag = false
+			} else {
+				log.Fatal("PES start code error")
+			}
+		}
+	}
+
 	if s.curpkt != nil {
 		s.curpkt.Size += int64(len(pkt.Data))
 		s.curpkt.Data = append(s.curpkt.Data, pkt.Data...)

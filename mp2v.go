@@ -153,7 +153,7 @@ func (s *Mp2vRecord) Process(pkt *TsPkt) {
 		s.curpkt.Pcr = s.BaseRecord.PcrTime
 		var startcode = []byte{0, 0, 1}
 		if 0 == bytes.Compare(startcode, pkt.Data[0:3]) {
-			hlen := s.curpkt.Read(pkt)
+			hlen := s.curpkt.Read(pkt.Data)
 			pkt.Data = pkt.Data[hlen:]
 		}
 	}
