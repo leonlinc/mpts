@@ -52,14 +52,16 @@ func extract(packet gopacket.Packet) (payload []byte) {
 		if len(payload) != 1316 {
 			// RTP header has a minimum size of 12 bytes.
 			offset := 12
+			extension := (payload[0] >> 4) & 1
 			// TODO: assume no CSRC
-			offset += 0
-			// Extension
-			extensionLength := binary.BigEndian.Uint16(payload[offset+2:])
-			// Extension header
-			offset += 4
-			// Extension entries
-			offset += 4 * int(extensionLength)
+			if extension == 1 {
+				// Extension
+				extensionLength := binary.BigEndian.Uint16(payload[offset+2:])
+				// Extension header
+				offset += 4
+				// Extension entries
+				offset += 4 * int(extensionLength)
+			}
 			payload = payload[offset:]
 		}
 		if *pcrFlag {
