@@ -6,14 +6,29 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
 	"github.com/leonlinc/mpts"
 )
 
-var pcrFlag = flag.Bool("pcr", false, "a bool")
+const TsPktSize = 188
+
+var PrintRecords bool
+
+func init() {
+	flag.BoolVar(&PrintRecords, "p", false, "print timing records")
+}
+
+type PcrRecord struct {
+	index   int
+	pcrTime int64
+}
+
+type MuxRecord struct {
+	PcrRecord
+	muxerTime uint32
+}
 
 func main() {
 	flag.Parse()
@@ -24,11 +39,12 @@ func main() {
 	}
 
 	input := flag.Args()[0]
-	handle, err := pcap.OpenOffline(input)
+
+	h, err := pcap.OpenOffline(input)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer handle.Close()
+	defer h.Close()
 
 	f, err := os.Create(input + ".ts")
 	if err != nil {
@@ -36,52 +52,88 @@ func main() {
 	}
 	defer f.Close()
 
-	source := gopacket.NewPacketSource(handle, handle.LinkType())
+	s := gopacket.NewPacketSource(h, h.LinkType())
+	process(s, f)
+}
+
+func process(source *gopacket.PacketSource, output *os.File) {
+	index := 0
 	for packet := range source.Packets() {
-		payload := extract(packet)
+		capTime := packet.Metadata().CaptureInfo.Timestamp.UnixNano() / 1e6
+		payload, records := parsePacket(packet)
 		if payload != nil {
-			f.Write(payload)
+			output.Write(payload)
 		}
+		if PrintRecords {
+			for _, record := range records {
+				fmt.Println(capTime, index+record.index, record.pcrTime, record.muxerTime)
+			}
+		}
+		index += len(payload) / TsPktSize
 	}
 }
 
-func extract(packet gopacket.Packet) (payload []byte) {
+func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 	appLayer := packet.ApplicationLayer()
-	if appLayer != nil {
-		payload = appLayer.Payload()
-		if len(payload) != 1316 {
-			// RTP header has a minimum size of 12 bytes.
-			offset := 12
-			extension := (payload[0] >> 4) & 1
-			// TODO: assume no CSRC
-			if extension == 1 {
-				// Extension
-				extensionLength := binary.BigEndian.Uint16(payload[offset+2:])
-				// Extension header
-				offset += 4
-				// Extension entries
-				offset += 4 * int(extensionLength)
-			}
-			payload = payload[offset:]
+	if appLayer == nil {
+		fmt.Fprintln(os.Stderr, "error: no application payload")
+		return
+	}
+
+	payload := appLayer.Payload()
+
+	var muxerTimes []uint32
+	if len(payload) != 1316 {
+		data, muxerTimes = parseHrtp(payload)
+	} else {
+		data = payload
+	}
+
+	pcrRecords := parseTsData(data)
+	for _, pcrRecord := range pcrRecords {
+		var muxerTime uint32
+		if len(muxerTimes) > pcrRecord.index {
+			muxerTime = muxerTimes[pcrRecord.index]
 		}
-		if *pcrFlag {
-			timestamp := packet.Metadata().CaptureInfo.Timestamp.UnixNano() / int64(time.Millisecond)
-			timing(payload, timestamp)
-		}
+		muxRecords = append(muxRecords, MuxRecord{pcrRecord, muxerTime})
 	}
 	return
 }
 
-func timing(payload []byte, timestamp int64) {
-	for i := 0; i < 7; i++ {
-		offset := 188 * i
-		if payload[offset] != 0x47 {
-			fmt.Println("Sync Byte Error")
-		} else {
-			pkt := mpts.ParseTsPkt(payload[offset:])
-			if pcr, ok := pkt.PCR(); ok {
-				fmt.Println(timestamp, pcr/27000)
-			}
+func parseHrtp(data []byte) (payload []byte, muxerTimes []uint32) {
+	// RTP header has a minimum size of 12 bytes.
+	offset := 12
+	extension := (data[0] >> 4) & 1
+	// TODO: assume no CSRC
+	if extension == 1 {
+		// Extension
+		extensionLength := binary.BigEndian.Uint16(data[offset+2:])
+		// Extension header
+		offset += 4
+		for i := 0; i < int(extensionLength); i++ {
+			muxerTime := binary.BigEndian.Uint32(data[offset+4*i:])
+			muxerTimes = append(muxerTimes, muxerTime)
+		}
+		// Extension entries
+		offset += 4 * int(extensionLength)
+	}
+	payload = data[offset:]
+	return
+}
+
+func parseTsData(data []byte) []PcrRecord {
+	var pcrRecords []PcrRecord
+	cnt := len(data) / TsPktSize
+	for i := 0; i < cnt; i++ {
+		offset := i * TsPktSize
+		if data[offset] != 0x47 {
+			fmt.Fprintln(os.Stderr, "error: TS sync byte != 0x47")
+			continue
+		}
+		pkt := mpts.ParseTsPkt(data[offset:])
+		if pcr, ok := pkt.PCR(); ok {
+			pcrRecords = append(pcrRecords, PcrRecord{i, pcr})
 		}
 	}
+	return pcrRecords
 }
