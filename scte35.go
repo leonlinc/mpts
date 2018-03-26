@@ -278,6 +278,21 @@ func (section SpliceInfoSection) GetSpliceDuration() int64 {
 	return duration
 }
 
+func (section SpliceInfoSection) GetSegType() int {
+	var segType int = -1
+	switch section.splice_command_type {
+	case 5:
+		// 0: splice-in, 1: splice-out
+		segType = section.SpliceInsert.GetOutOfNetworkIndicator()
+	case 6:
+		// segmentation_type_id
+		if section.SegmentDescriptor != nil {
+			segType = section.SegmentDescriptor.GetSegType()
+		}
+	}
+	return segType
+}
+
 func (insert SpliceInsert) GetSpliceTime() int64 {
 	if insert.SpliceTime != nil {
 		if insert.SpliceTime.time_specified_flag == 1 {
@@ -294,6 +309,10 @@ func (insert SpliceInsert) GetSpliceDuration() int64 {
 	return -1
 }
 
+func (insert SpliceInsert) GetOutOfNetworkIndicator() int {
+	return insert.out_of_network_indicator
+}
+
 func (signal TimeSignal) GetSpliceTime() int64 {
 	if signal.SpliceTime.time_specified_flag == 1 {
 		return signal.SpliceTime.pts_time
@@ -308,6 +327,10 @@ func (segment SegmentDescriptor) GetSpliceDuration() int64 {
 		}
 	}
 	return -1
+}
+
+func (segment SegmentDescriptor) GetSegType() int {
+	return segment.segmentation_type_id
 }
 
 type Scte35Record struct {
@@ -353,19 +376,21 @@ func (s *Scte35Record) Report(root string) {
 	}
 	defer w.Close()
 
-	fmt.Fprintln(w, "pos, pcr, type, pts_time, pts_adjust, duration")
+	fmt.Fprintln(w, "pos, pcr, type, pts_time, pts_adjust, duration, out_or_segType")
 	if s.Sections != nil {
 		for i, section := range s.Sections {
 			splice_type := section.GetSpliceType()
 			pts, adj := section.GetSpliceTime()
 			duration := section.GetSpliceDuration()
-			fmt.Fprintf(w, "%v, %v, %v, %v, %v, %v\n",
+			segType := section.GetSegType()
+			fmt.Fprintf(w, "%v, %v, %v, %v, %v, %v, %v\n",
 				s.BytePos[i],
 				s.PcrTime[i]/300,
 				splice_type,
 				pts,
 				adj,
-				duration)
+				duration,
+				segType)
 		}
 	}
 }
