@@ -29,7 +29,7 @@ var StreamTypeString map[int]string = map[int]string{
 }
 
 func GetStreamType(s Stream) string {
-	if typeString, ok := StreamTypeString[s.stream_type]; ok {
+	if typeString, ok := StreamTypeString[s.StreamTypeId]; ok {
 		return typeString
 	} else {
 		return "Unknown stream type"
@@ -171,7 +171,7 @@ func ParsePmt(data []byte) *Pmt {
 }
 
 func ParseStream(stream *Stream, r *Reader) int {
-	stream.stream_type = r.ReadBit(8)
+	stream.StreamTypeId = r.ReadBit(8)
 	stream.StreamType = GetStreamType(*stream)
 	r.SkipBit(3)
 	stream.Pid = r.ReadBit(13)
@@ -219,7 +219,7 @@ type Program struct {
 }
 
 type Stream struct {
-	stream_type    int
+	StreamTypeId   int
 	StreamType     string
 	Pid            int
 	es_info_length int
