@@ -353,7 +353,22 @@ func (p *PsiParser) BufferData(pkt *TsPkt, buf *[]byte) bool {
 			*buf = append(*buf, pkt.Data...)
 		}
 	}
-	return false
+
+	// complete?
+	r := &Reader{Data: *buf}
+	pointer := r.ReadBit(8)
+	r.SkipByte(pointer)
+	r.SkipBit(12)
+	section_length := r.ReadBit(12)
+
+	actlen := len(*buf)
+	explen := 1 + pointer + 3 + section_length
+	// fmt.Println(actlen, explen)
+	if actlen >= explen {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 func (p *PsiParser) Finish() {
