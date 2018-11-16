@@ -1,8 +1,9 @@
 package ts
 
 import (
+	"io"
+
 	"github.com/leonlinc/mpts/bit"
-	"os"
 )
 
 type adaptation_field struct {
@@ -20,6 +21,7 @@ type adaptation_field struct {
 }
 
 type Reader struct {
+	// transport_packet()
 	sync_byte                    int
 	transport_error_indicator    int
 	payload_unit_start_indicator int
@@ -28,63 +30,64 @@ type Reader struct {
 	transport_scrambling_control int
 	adaptation_field_control     int
 	continuity_counter           int
+	// adaptation_field()
 	*adaptation_field
 
-	file  *os.File
-	count int64
+	rd         io.Reader
+	pos        int64
+	PcrRecords map[int]PcrRecord
 }
 
 func (r *Reader) Read(b []byte) (n int, err error) {
-	n, err = r.file.Read(b)
-	if err == nil {
-		k := bit.NewReader(b)
+	n, err = r.rd.Read(b)
+	if err != nil {
+		return
+	}
 
-		r.sync_byte = k.ReadBit(8)
-		r.transport_error_indicator = k.ReadBit(1)
-		r.payload_unit_start_indicator = k.ReadBit(1)
-		r.transport_priority = k.ReadBit(1)
-		r.PID = k.ReadBit(13)
-		r.transport_scrambling_control = k.ReadBit(2)
-		r.adaptation_field_control = k.ReadBit(2)
-		r.continuity_counter = k.ReadBit(4)
-		if r.adaptation_field_control == 2 || r.adaptation_field_control == 3 {
-			r.adaptation_field = &adaptation_field{}
-			r.adaptation_field_length = k.ReadBit(8)
-			if r.adaptation_field_length > 0 {
-				r.discontinuity_indicator = (k.ReadBit(1) != 0)
-				r.random_access_indicator = (k.ReadBit(1) != 0)
-				r.elementary_stream_priority_indicator = (k.ReadBit(1) != 0)
-				r.PCR_flag = (k.ReadBit(1) != 0)
-				r.OPCR_flag = (k.ReadBit(1) != 0)
-				r.splicing_point_flag = (k.ReadBit(1) != 0)
-				r.transport_private_data_flag = (k.ReadBit(1) != 0)
-				r.adaptation_field_extension_flag = (k.ReadBit(1) != 0)
-				if r.PCR_flag {
-					r.program_clock_reference_base = k.ReadBit64(33)
-					k.SkipBit(6)
-					r.program_clock_reference_extension = k.ReadBit64(9)
-				}
+	br := bit.NewReader(b)
+	r.pos += 1
+	r.sync_byte = br.ReadBit(8)
+	r.transport_error_indicator = br.ReadBit(1)
+	r.payload_unit_start_indicator = br.ReadBit(1)
+	r.transport_priority = br.ReadBit(1)
+	r.PID = br.ReadBit(13)
+	r.transport_scrambling_control = br.ReadBit(2)
+	r.adaptation_field_control = br.ReadBit(2)
+	r.continuity_counter = br.ReadBit(4)
+	if r.adaptation_field_control == 2 || r.adaptation_field_control == 3 {
+		r.adaptation_field = &adaptation_field{}
+		r.adaptation_field_length = br.ReadBit(8)
+		if r.adaptation_field_length > 0 {
+			r.discontinuity_indicator = (br.ReadBit(1) != 0)
+			r.random_access_indicator = (br.ReadBit(1) != 0)
+			r.elementary_stream_priority_indicator = (br.ReadBit(1) != 0)
+			r.PCR_flag = (br.ReadBit(1) != 0)
+			r.OPCR_flag = (br.ReadBit(1) != 0)
+			r.splicing_point_flag = (br.ReadBit(1) != 0)
+			r.transport_private_data_flag = (br.ReadBit(1) != 0)
+			r.adaptation_field_extension_flag = (br.ReadBit(1) != 0)
+			if r.PCR_flag {
+				r.program_clock_reference_base = br.ReadBit64(33)
+				br.SkipBit(6)
+				r.program_clock_reference_extension = br.ReadBit64(9)
+				pcr := ComputePcr(r.program_clock_reference_base, r.program_clock_reference_extension)
+				r.PcrRecords[r.PID] = PcrRecord{Pid: r.PID, Pos: r.pos, Pcr: pcr}
 			}
-		} else {
-			r.adaptation_field = nil
 		}
-		r.count += 1
+	} else {
+		r.adaptation_field = nil
 	}
 	return
 }
 
-func (r *Reader) Count() int64 {
-	return r.count
+func (r *Reader) Pos() int64 {
+	return r.pos
 }
 
-func (r *Reader) PCR() int64 {
-	if r.adaptation_field != nil && r.PCR_flag {
-		return r.program_clock_reference_base*300 + r.program_clock_reference_extension
-	} else {
-		return -1
-	}
+func (r *Reader) Pcr() (PcrRecord, bool) {
+	return r.PcrRecords[r.PID], r.adaptation_field != nil && r.PCR_flag
 }
 
-func NewReader(file *os.File) *Reader {
-	return &Reader{file: file}
+func NewReader(r io.Reader) *Reader {
+	return &Reader{rd: r, PcrRecords: make(map[int]PcrRecord)}
 }

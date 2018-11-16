@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+
 	"github.com/leonlinc/mpts/ts"
 )
 
@@ -14,9 +15,9 @@ var (
 )
 
 type stat struct {
-	previous_pcr_pos int64
-	previous_pcr int64
-	pat_pos_records []int64
+	init bool
+	previous_pcr     ts.PcrRecord
+	pat_pos_records  []int64
 }
 
 func init() {
@@ -37,7 +38,7 @@ func parse(file *os.File) {
 	log.Println("Start parsing", file.Name())
 	r := ts.NewReader(file)
 	b := make([]byte, 188)
-	s := stat{previous_pcr: -1, previous_pcr_pos: -1, pat_pos_records: nil}
+	s := stat{init: false}
 	for {
 		_, err := r.Read(b)
 		if err != nil {
@@ -48,21 +49,18 @@ func parse(file *os.File) {
 		}
 
 		if r.PID == 0 {
-			s.addPatPosRecord(r.Count())
+			s.addPatPosRecord(r.Pos())
 		}
-		if r.PCR() != -1 {
-			pcr := r.PCR()
-			pos := r.Count()
-			fmt.Println("PCR", pos, pcr)
-			if s.previous_pcr != -1 {
+		if pcr, ok := r.Pcr(); ok {
+			fmt.Println("PCR", pcr)
+			if s.init == false {
 				for _, p := range s.pat_pos_records {
-					t := s.previous_pcr + (p - s.previous_pcr_pos) * (pcr - s.previous_pcr) / (pos - s.previous_pcr_pos)
+					t := s.previous_pcr.Pcr + (p-s.previous_pcr.Pos)*(pcr.Pcr-s.previous_pcr.Pcr)/(pcr.Pos-s.previous_pcr.Pos)
 					fmt.Println("PAT", p, t)
 				}
 				s.pat_pos_records = nil
 			}
 			s.previous_pcr = pcr
-			s.previous_pcr_pos = pos
 		}
 	}
 	log.Println(s)
