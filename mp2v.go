@@ -132,7 +132,7 @@ func (s *Mp2vRecord) Process(pkt *TsPkt) {
 	if pkt.PUSI == 1 {
 		if s.curpkt != nil {
 			headers := ParseMp2vHeaders(s.curpkt.Data)
-			if headers.Mp2vPicHeader.PictureCodingType == 1 {
+			if headers.Mp2vPicHeader != nil && headers.Mp2vPicHeader.PictureCodingType == 1 {
 				i := IFrameInfo{}
 				i.Pos = s.curpkt.Pos
 				i.Pts = s.curpkt.Pts
