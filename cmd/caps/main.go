@@ -83,10 +83,16 @@ func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 	payload := appLayer.Payload()
 
 	var muxerTimes []uint32
-	if len(payload) != 1316 {
+	var length = len(payload)
+	if length == 1316 {
+		data = payload
+	} else if length == 1376 {
+		data, muxerTimes = parseSrtHrtp(payload)
+	} else if length == 1360 {
 		data, muxerTimes = parseHrtp(payload)
 	} else {
-		data = payload
+		// e.g. SRT control packet, skip
+		return
 	}
 
 	pcrRecords := parseTsData(data)
@@ -97,6 +103,11 @@ func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 		}
 		muxRecords = append(muxRecords, MuxRecord{pcrRecord, muxerTime})
 	}
+	return
+}
+
+func parseSrtHrtp(data []byte) (payload []byte, muxerTimes []uint32) {
+	payload, muxerTimes = parseHrtp(data[16:])
 	return
 }
 
