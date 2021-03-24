@@ -83,10 +83,18 @@ func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 	payload := appLayer.Payload()
 
 	var muxerTimes []uint32
-	if len(payload) != 1316 {
-		data, muxerTimes = parseHrtp(payload)
-	} else {
+	var length = len(payload)
+	if length == 1316 {
 		data = payload
+	} else if length == 1376 {
+		data, muxerTimes = parseSrtHrtp(payload)
+	} else if length == 1360 {
+		data, muxerTimes = parseHrtp(payload)
+	} else if length == 1328 {
+		data = parseRtp(payload)
+	} else {
+		// e.g. SRT control packet, skip
+		return
 	}
 
 	pcrRecords := parseTsData(data)
@@ -97,6 +105,11 @@ func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 		}
 		muxRecords = append(muxRecords, MuxRecord{pcrRecord, muxerTime})
 	}
+	return
+}
+
+func parseSrtHrtp(data []byte) (payload []byte, muxerTimes []uint32) {
+	payload, muxerTimes = parseHrtp(data[16:])
 	return
 }
 
@@ -117,6 +130,13 @@ func parseHrtp(data []byte) (payload []byte, muxerTimes []uint32) {
 		// Extension entries
 		offset += 4 * int(extensionLength)
 	}
+	payload = data[offset:]
+	return
+}
+
+func parseRtp(data []byte) (payload []byte) {
+	// RTP header has a minimum size of 12 bytes.
+	offset := 12
 	payload = data[offset:]
 	return
 }

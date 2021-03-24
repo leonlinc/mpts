@@ -93,7 +93,7 @@ func (s *H264Record) Process(pkt *TsPkt) {
 				hlen := s.curpkt.Read(pkt.Data)
 				pkt.Data = pkt.Data[hlen:]
 			} else {
-				log.Fatal("PES start code error")
+				log.Println("PES start code error")
 			}
 		} else {
 			log.Println("Workaround for pkt:", pkt.Pos, "size:", len(pkt.Data))
@@ -112,7 +112,7 @@ func (s *H264Record) Process(pkt *TsPkt) {
 				pkt.Data = s.WorkaroundPES[hlen:]
 				s.WorkaroundPESFlag = false
 			} else {
-				log.Fatal("PES start code error")
+				log.Println("PES start code error")
 			}
 		}
 	}
