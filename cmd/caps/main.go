@@ -84,7 +84,7 @@ func parsePacket(packet gopacket.Packet) (data []byte, muxRecords []MuxRecord) {
 
 	var muxerTimes []uint32
 	var length = len(payload)
-	if length == 1316 {
+	if length%188 == 0 {
 		data = payload
 	} else if length == 1376 {
 		data, muxerTimes = parseSrtHrtp(payload)
