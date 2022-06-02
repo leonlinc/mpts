@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/leonlinc/mpts/ts"
+	"github.com/leonlinc/mpts/internal/ts"
 )
 
 var (

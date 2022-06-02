@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leonlinc/mpts"
+	"github.com/leonlinc/mpts/internal"
 )
 
 var Root string

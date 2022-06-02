@@ -3,7 +3,7 @@ package ts
 import (
 	"io"
 
-	"github.com/leonlinc/mpts/bit"
+	"github.com/leonlinc/mpts/internal/bit"
 )
 
 type adaptation_field struct {

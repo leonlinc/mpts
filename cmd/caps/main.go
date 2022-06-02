@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	"github.com/leonlinc/mpts"
+	"github.com/leonlinc/mpts/internal"
 )
 
 const TsPktSize = 188
