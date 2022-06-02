@@ -15,9 +15,9 @@ var (
 )
 
 type stat struct {
-	init bool
-	previous_pcr     ts.PcrRecord
-	pat_pos_records  []int64
+	init            bool
+	previous_pcr    ts.PcrRecord
+	pat_pos_records []int64
 }
 
 func init() {

@@ -365,9 +365,9 @@ func (p *PsiParser) BufferData(pkt *TsPkt, buf *[]byte) bool {
 	explen := 1 + pointer + 3 + section_length
 	// fmt.Println(actlen, explen)
 	if actlen >= explen {
-		return true;
+		return true
 	} else {
-		return false;
+		return false
 	}
 }
 
