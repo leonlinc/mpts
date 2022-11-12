@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"fmt"
 )
 
 const TSPacketSize = 188
@@ -32,7 +33,7 @@ func ParseFile(fname string) chan *TsPkt {
 
 			pkt := ParseTsPkt(buf)
 			if pkt.SyncByte != 0x47 {
-				panic("Sync byte error")
+				panic(fmt.Sprintf("Sync byte error at pkt %d", count))
 			}
 
 			pkt.Pos = count
