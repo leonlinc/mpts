@@ -28,20 +28,20 @@ func main() {
 
 	if *dumpFlag {
 		if len(args) != 3 {
-			fmt.Printf("Usage: mtr -dump interface address port\n")
+			fmt.Printf("Usage: tsparser -dump interface address port\n")
 			os.Exit(1)
 		}
 
 		dump(args[0], args[1], args[2], *outFile)
 	} else if *sendFlag {
 		if len(args) != 5 {
-			fmt.Printf("Usage: mtr -send ip address port file bitrate\n")
+			fmt.Printf("Usage: tsparser -send ip address port file bitrate\n")
 			os.Exit(1)
 		}
 		send(args[0], args[1], args[2], args[3], args[4])
 	} else {
 		if len(args) != 1 {
-			fmt.Printf("Usage: mtr [options] arguments\n")
+			fmt.Printf("Usage: tsparser [options] arguments\n")
 			os.Exit(1)
 		}
 		parseFile(args[0])
