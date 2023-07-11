@@ -22,6 +22,7 @@ var StreamTypeString map[int]string = map[int]string{
 	0x10: "MPEG-4 Video",
 	0x11: "MPEG-4 AAC Audio (LATM)",
 	0x1B: "MPEG-4 AVC Video",
+	0x24: "HEVC Video",
 	0x81: "AC-3 Audio",
 	0x82: "SCTE-27",
 	0x86: "SCTE-35",
