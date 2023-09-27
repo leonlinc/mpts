@@ -126,6 +126,15 @@ func (s *H264Record) Process(pkt *TsPkt) {
 func (s *H264Record) Flush() {
 	if s.curpkt != nil {
 		nals := ParseNalUnits(s.curpkt.Data)
+		for _, nal := range nals {
+			if nal == "slice_idr" {
+				info := IFrameInfo{}
+				info.Pos = s.curpkt.Pos
+				info.Pts = s.curpkt.Pts
+				info.Key = true
+				s.LogIFrame(info)
+			}
+		}
 		s.Nals = append(s.Nals, nals)
 		s.Pkts = append(s.Pkts, s.curpkt)
 	}
