@@ -174,6 +174,15 @@ func (s *H265Record) Process(pkt *TsPkt) {
 func (s *H265Record) Flush() {
 	if s.curpkt != nil {
 		nals := ParseHevcNalUnits(s.curpkt.Data)
+		for _, nal := range nals {
+			if nal == "idr_w_radl" || nal == "idr_n_lp" {
+				info := IFrameInfo{}
+				info.Pos = s.curpkt.Pos
+				info.Pts = s.curpkt.Pts
+				info.Key = true
+				s.LogIFrame(info)
+			}
+		}
 		s.Nals = append(s.Nals, nals)
 		s.Pkts = append(s.Pkts, s.curpkt)
 	}
